@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.venv*/
+*.egg-info/
+
+# Local logs and runtime output
+*.log
+api.*.log
+vite.*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Frontend
+node_modules/
+dist/
+kinetic-precision/node_modules/
+kinetic-precision/dist/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/

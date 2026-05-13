@@ -1,0 +1,91 @@
+model,site_id,site_type,light_regime,horizon_bucket,actual_peak_regime,rows,mean_error_kw,mean_abs_error_kw,max_abs_error_kw
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,middle,non_peak,32,723.1413027663514,723.1413027663514,1271.4400606235306
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,early,non_peak,10,585.4913027663513,585.4913027663513,764.3425449091721
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,late,non_peak,6,558.3913027663514,558.3913027663514,747.3425449091721
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,non_peak,18,489.67991562350227,489.67991562350227,790.3425449091721
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,middle,non_peak,32,459.8231398189248,459.8231398189248,1007.0420507969711
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,late,non_peak,6,431.6995549975166,431.6995549975166,621.1203377425356
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,non_peak,20,407.8815511949155,407.8815511949155,662.3425449091721
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,6,336.6564446443794,336.6564446443794,399.6990989772846
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,early,non_peak,10,320.4146386282284,320.4146386282284,502.3083966260467
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,late,non_peak,26,315.6437207013133,315.6437207013133,481.92508276289175
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,27,303.91728369374624,303.91728369374624,397.6137903114742
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,night,late,non_peak,25,287.4981508176956,287.4981508176956,423.6990989772846
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,early,non_peak,22,287.45840601599866,287.45840601599866,351.92508276289175
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,early,non_peak,10,286.7685174921756,286.7685174921756,343.92508276289175
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,night,early,non_peak,21,285.55917539043156,285.55917539043156,443.6990989772846
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,actual_peak,4,269.09254490917215,269.09254490917215,310.34254490917215
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,non_peak,18,242.23494569109596,242.23494569109596,545.6131516589844
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,middle,non_peak,32,234.94484894535017,239.55179313716226,715.5973223538606
+direct_lgbm_quantile_p90_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,actual_peak,6,225.92380800447086,225.92380800447086,298.34254490917215
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,1,-225.39817478097268,225.39817478097268,225.39817478097268
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,late,non_peak,6,186.1901881912861,210.77519419319916,319.73215562397763
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,5,-210.67699216808532,210.67699216808532,250.8093967081728
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,non_peak,20,207.44014311108594,207.44014311108594,437.2495994542073
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,7,205.50749402539296,205.50749402539296,303.6990989772846
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,actual_peak,3,-181.45337332308955,181.45337332308955,210.8591695748795
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,actual_peak,1,-169.90477949923232,169.90477949923232,169.90477949923232
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,6,141.62680753874213,152.54108142877337,243.99643674757795
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,night,early,actual_peak,1,-150.39246768889313,150.39246768889313,150.39246768889313
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,daylight,early,non_peak,10,114.81231585620637,140.43722718617425,260.2636674427922
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,27,128.63648499561256,133.80218874821045,229.49689587745945
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,late,non_peak,26,131.49625962924762,131.49625962924762,242.54419215722078
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,night,early,actual_peak,1,130.69909897728462,130.69909897728462,130.69909897728462
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,actual_peak,9,-125.26628737677366,125.26628737677366,161.8056880608045
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,night,late,non_peak,25,99.77926062122816,111.96637166142784,190.8680553115771
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,1,-109.94946255530556,109.94946255530556,109.94946255530556
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,actual_peak,3,105.33732942201448,105.33732942201448,136.69909897728462
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,night,early,non_peak,21,102.94471316520024,104.5666115927758,257.8168244854181
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,actual_peak,1,-103.60154193785112,103.60154193785112,103.60154193785112
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,late,non_peak,26,74.8121305594843,100.47534298567649,192.3057204875363
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,actual_peak,9,-100.40728953234624,100.40728953234624,110.15814459996488
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,actual_peak,6,-100.21914418746587,100.21914418746587,155.28411884255297
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,non_peak,23,-99.58042885031207,99.58042885031207,122.45373703362435
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,5,-97.79542108853673,97.79542108853673,131.50310412254055
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,non_peak,23,96.72272749925828,96.72272749925828,168.1036847215862
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,7,-89.75901743652415,96.21831238255469,168.22641341315114
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,actual_peak,4,-95.74860199102068,95.74860199102068,179.72538176401144
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,actual_peak,1,-92.48332041161044,92.48332041161044,92.48332041161044
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,actual_peak,9,-92.11046574035645,92.11046574035645,98.00356241628432
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,6,60.540597040533534,88.62447612845774,128.9099586098156
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,non_peak,18,71.80223359479284,88.09577343465259,303.90818737465634
+direct_lgbm_quantile_p50_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,non_peak,20,58.56485944750193,82.70346201956761,267.6481824507082
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,non_peak,5,-79.11402776964596,79.11402776964596,158.16488269389214
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,actual_peak,3,-78.46542817290235,78.46542817290235,116.18317551458188
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,5,75.84791377779837,75.84791377779837,107.61379031147419
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,night,late,non_peak,25,4.300023744925425,74.96242897667997,169.39817478097268
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,early,non_peak,10,74.53461123836448,74.53461123836448,105.40314041969373
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,non_peak,23,-70.0741378771705,70.0741378771705,94.79025747825133
+direct_lgbm_quantile_p90_smoke,2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,1,68.61379031147419,68.61379031147419,68.61379031147419
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,night,early,non_peak,21,-5.292170124785256,68.5293661944899,162.60753231110687
+direct_lgbm_quantile_p50_smoke,2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,27,18.542764822683452,64.62863105029665,176.42861249124735
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,middle,non_peak,23,-64.25043796603568,64.25043796603568,88.55688452566152
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,night,early,actual_peak,4,34.68314946672558,59.71657473336279,75.93314946672558
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,actual_peak,9,57.76033924999313,57.76033924999313,76.91720212008704
+direct_lgbm_quantile_p80_smoke,4. Load Profile (With Solar) Mi2,solar,night,late,actual_peak,6,54.161797028343734,57.0003138836366,110.27877225249767
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,night,early,actual_peak,1,-55.183175514581876,55.183175514581876,55.183175514581876
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,non_peak,5,53.11537772901363,53.11537772901363,71.92508276289175
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,non_peak,5,-44.169733686257906,49.895289865356425,79.04806917819599
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,early,non_peak,22,49.5989973945161,49.5989973945161,99.45793806907727
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,early,non_peak,10,24.735463580826423,45.08131154343005,89.56507934350623
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,non_peak,5,-14.580003508248291,44.553359050109464,79.19392041161043
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,late,non_peak,5,-41.76284795165178,43.90632050064422,90.31214193785112
+direct_lgbm_quantile_p80_smoke,2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,7,23.190105642583035,40.35006763660777,117.81682448541812
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,non_peak,23,31.6586812984053,31.6586812984053,105.06477674765097
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,actual_peak,1,-26.735154439722464,26.735154439722464,26.735154439722464
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,non_peak,23,12.853705625385102,24.382193784340974,68.16942566450211
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,non_peak,5,21.516931608960295,21.516931608960295,24.842167343868937
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,night,late,non_peak,26,-17.141933468632306,19.15366471341325,88.65542736362016
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,early,non_peak,10,-18.962703555468615,18.962703555468615,37.438528602131974
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,night,early,non_peak,22,14.005638980558041,17.94441841061739,67.4704456058231
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,night,late,non_peak,26,13.772931833467071,16.389795875711766,47.32991140665118
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,actual_peak,1,-16.157832656131063,16.157832656131063,16.157832656131063
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,early,non_peak,10,4.295175345221372,16.116956766052976,30.39457412857807
+direct_lgbm_quantile_p50_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,actual_peak,9,-11.77848783078097,13.63248136201677,56.99748763289506
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,night,late,non_peak,26,2.043218761231906,13.185239433042584,46.64417892228579
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,daylight,early,non_peak,10,-5.947090346356867,11.67277833477387,31.43651475031436
+direct_lgbm_quantile_p90_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,late,actual_peak,1,-8.099179821803546,8.099179821803546,8.099179821803546
+direct_lgbm_quantile_p50_smoke,3. Load Profile (No Solar) SuN,non_solar,night,early,non_peak,22,-7.589154637984806,7.589154637984806,14.12514963319854
+direct_lgbm_quantile_p90_smoke,3. Load Profile (No Solar) SuN,non_solar,night,early,non_peak,22,7.576472023781924,7.576472023781924,11.645698608181121
+direct_lgbm_quantile_p80_smoke,1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,actual_peak,9,-2.86284962954715,5.408345473630713,22.013977843458065
+direct_lgbm_quantile_p80_smoke,3. Load Profile (No Solar) SuN,non_solar,night,early,non_peak,22,-1.113507410969107,2.9018180809810383,5.801141855586508

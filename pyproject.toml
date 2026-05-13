@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trex-competition-app"
+version = "0.1.0"
+description = "Multi-site peak-shaving competition app for Malaysia commercial and EV load datasets."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "httpx",
+  "lightgbm",
+  "numpy",
+  "openpyxl",
+  "pandas",
+  "plotly",
+  "python-multipart",
+  "scikit-learn",
+  "uvicorn",
+]
+
+[tool.setuptools.packages.find]
+include = ["trex_energy*"]

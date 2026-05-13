@@ -75,7 +75,7 @@ class ApiTests(unittest.TestCase):
         first_point = payload["forecast"]["points"][0]
         self.assertIn("peak_risk_overlay_score", first_point)
         self.assertIn("is_peak_risk_overlay", first_point)
-        self.assertEqual(first_point["planning_method"], "gated_ml_planning_gradient_boosting")
+        self.assertEqual(first_point["planning_method"], "recent_pattern_simulation")
 
     def test_upload_analysis_accepts_workbook_file(self) -> None:
         workbook = Path("2. Load Profile (No Solar) E.xlsx")

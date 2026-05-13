@@ -71,7 +71,7 @@ The app must:
 - keep new long-horizon and correction-model candidates backend-only until internal 30/60/90-day validation beats the current production planner
 - allow backend-only ML MD-risk candidates to adjust p90/p95 risk envelopes while preserving the user-facing p50 forecast path
 - allow backend-only full ML planning candidates to predict p50, p90, and p95 for model development, but require explicit validation and no silent fallback before any production promotion
-- use the gated ML planning candidate in the main FastAPI forecast path when enough history exists, because it slightly improves interval RMSE/WAPE while preserving the current ML MD-risk gains
+- keep the main FastAPI forecast path on the stable monthly planner until an ML candidate shows material score improvement and acceptable local runtime
 - expose a separate peak-risk overlay score and high MD-risk window marker in the app without changing `forecast_kw_import`, so the UI can tell a recall-oriented peak-alert story while keeping the value forecast stable
 - guard late-night non-solar MD-risk corrections to recent local night-peak shapes and apply them only to p90/p95 risk envelopes, not the p50 forecast path
 - keep canonical `kw_import` and `kw_export` as power in kW; if source active import/export values are interval energy in kWh, convert to kW using the interval duration

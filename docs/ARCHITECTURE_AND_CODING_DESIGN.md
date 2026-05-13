@@ -74,7 +74,7 @@ The current repository layout is:
 - `trex_energy/forecasting.py`: also includes a backend-only baseline-correction LightGBM candidate that learns p50 residuals over the current planner while leaving p90/p95 risk envelopes stable during model development
 - `trex_energy/forecasting.py`: also includes a backend-only MD-risk-only LightGBM candidate that preserves p50 forecast values and adjusts only p90/p95 risk envelopes using site-regime peak features, gated undercoverage probabilities, tuned uplift policy caps, and peak-timing localization
 - `trex_energy/forecasting.py`: also includes a backend-only full ML planning LightGBM candidate that predicts p50, p90, and p95 residuals over planner-aware features; it is model-development only and raises on short history instead of silently falling back
-- `trex_energy/forecasting.py`: also includes `forecast_gated_ml_planning_profile`, the current main FastAPI forecast candidate for enough-history analyses; it keeps the ML MD-risk p90/p95 behavior and applies bounded p50 correction only to high-confidence intervals
+- `trex_energy/forecasting.py`: also includes `forecast_gated_ml_planning_profile` as a backend-only experiment; it keeps the ML MD-risk p90/p95 behavior and applies bounded p50 correction only to high-confidence intervals
 - `trex_energy/tariff.py`: bill-component calculations for MD and energy charges
 - `trex_energy/optimization.py`: deterministic scenario evaluation for flexible shifting, battery, and clear-sky sine solar
 - `trex_energy/reporting.py`: CSV export helpers, executive summary text, and cross-site comparison summaries
@@ -119,7 +119,7 @@ Responsibilities:
 - for 1-3 month planning, output `forecast_kw_import`, `md_risk_envelope_kw`, `p50_forecast_kw`, `p90_md_risk_kw`, `p95_stress_kw`, `calibrated_p90_md_risk_kw`, `calibrated_p95_stress_kw`, and `planning_month` from recent pattern simulation rather than recursive ML predictions
 - backtest monthly planning by comparing simulated 30-day MD against actual 30-day MD and reporting envelope coverage
 - keep full ML planning candidates separate from the production planner until they improve MD planning metrics without materially worsening normal interval forecast error
-- route FastAPI analysis through the gated ML planning candidate when possible, while keeping the response focused on forecast and optimization results rather than model-comparison details
+- route FastAPI analysis through the stable monthly planner while keeping ML candidates available for backend validation only
 
 ### Optimization
 Responsibilities:

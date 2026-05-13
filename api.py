@@ -13,7 +13,6 @@ import pandas as pd
 from trex_energy.forecasting import (
     backtest_monthly_planning_profile,
     backtest_site_forecast,
-    forecast_gated_ml_planning_profile,
     forecast_monthly_planning_profile,
 )
 from trex_energy.ingestion import ACTIVE_POWER_UNITS, load_site_workbook
@@ -86,44 +85,19 @@ def _find_bundled_file(source_file: str) -> Path:
     raise HTTPException(status_code=404, detail=f"Unknown bundled workbook: {requested_name}")
 
 
-def _reference_frames(exclude_source_file: str | None = None, active_power_unit: str = "auto") -> list[pd.DataFrame]:
-    frames: list[pd.DataFrame] = []
-    excluded_name = Path(exclude_source_file).name if exclude_source_file else None
-    for workbook in _site_files():
-        if excluded_name and workbook.name == excluded_name:
-            continue
-        try:
-            reference_frame, _ = load_site_workbook(workbook, active_power_unit=active_power_unit)
-        except Exception:
-            continue
-        frames.append(reference_frame)
-    return frames
-
-
 def _forecast_planning_profile(
     frame: pd.DataFrame,
     *,
     months: int,
-    reference_frames: list[pd.DataFrame] | None = None,
     growth_rate_pct: float = 0.0,
     ev_load_kw: float = 0.0,
 ) -> pd.DataFrame:
-    try:
-        return forecast_gated_ml_planning_profile(
-            frame,
-            months=months,
-            reference_frames=reference_frames,
-            max_training_rows=120,
-            growth_rate_pct=growth_rate_pct,
-            ev_load_kw=ev_load_kw,
-        )
-    except ValueError:
-        return forecast_monthly_planning_profile(
-            frame,
-            months=months,
-            growth_rate_pct=growth_rate_pct,
-            ev_load_kw=ev_load_kw,
-        )
+    return forecast_monthly_planning_profile(
+        frame,
+        months=months,
+        growth_rate_pct=growth_rate_pct,
+        ev_load_kw=ev_load_kw,
+    )
 
 
 def _build_analysis_payload(
@@ -131,7 +105,6 @@ def _build_analysis_payload(
     metadata: object,
     *,
     months: int,
-    reference_frames: list[pd.DataFrame] | None = None,
     growth_rate_pct: float = 0.0,
     ev_load_kw: float = 0.0,
     use_md_risk_envelope: bool = True,
@@ -150,7 +123,6 @@ def _build_analysis_payload(
     forecast = _forecast_planning_profile(
         frame,
         months=months,
-        reference_frames=reference_frames,
         growth_rate_pct=growth_rate_pct,
         ev_load_kw=ev_load_kw,
     )
@@ -262,12 +234,10 @@ def analyze_bundled(request: BundledAnalysisRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="active_power_unit must be auto, kw, or kwh_per_interval")
     workbook = _find_bundled_file(request.source_file)
     frame, metadata = load_site_workbook(workbook, active_power_unit=request.active_power_unit)
-    references = _reference_frames(workbook.name, active_power_unit=request.active_power_unit)
     return _build_analysis_payload(
         frame,
         metadata,
         months=request.months,
-        reference_frames=references,
         growth_rate_pct=request.growth_rate_pct,
         ev_load_kw=request.ev_load_kw,
         use_md_risk_envelope=request.use_md_risk_envelope,
@@ -308,12 +278,10 @@ async def analyze_upload(
         temp_path.write_bytes(await file.read())
         frame, metadata = load_site_workbook(temp_path, active_power_unit=active_power_unit)
 
-    references = _reference_frames(active_power_unit=active_power_unit)
     return _build_analysis_payload(
         frame,
         metadata,
         months=months,
-        reference_frames=references,
         growth_rate_pct=growth_rate_pct,
         ev_load_kw=ev_load_kw,
         use_md_risk_envelope=use_md_risk_envelope,

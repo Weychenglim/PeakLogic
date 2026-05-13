@@ -68,7 +68,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Changed tariff simulation to charge MD once per 30-day planning month.
 - Replaced the solar sizing shape with a clear-sky sine profile.
 - Added backend-only `forecast_full_ml_planning_profile`, a LightGBM full planning candidate that changes p50 and predicts p90/p95 risk paths while keeping all model details out of the UI.
-- Added `forecast_gated_ml_planning_profile` and routed FastAPI bundled/upload analysis through it when enough history exists.
+- Added `forecast_gated_ml_planning_profile` as a backend experiment, then restored FastAPI bundled/upload analysis to the stable monthly planner after the score movement proved too small for the runtime cost.
 
 ## In Progress
 - Peak-priority notebook model enhancement was implemented and benchmarked in this thread; the 2026-05-04 refinement rerun keeps `current_20pct` as the leading alert policy for metric review.
@@ -86,7 +86,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - The next major implementation slice remains model-quality refinement plus presentation polish.
 - Supabase integration is intentionally deferred until the React/FastAPI local workflow is stable and the team needs saved analyses or user/project persistence.
 - Full ML planning candidate validation is in progress as a backend-only experiment. The first bundled 30-day holdout improves p90 MD absolute error versus the statistical planner, but worsens RMSE/WAPE and p50 MD error versus both the statistical planner and the current hybrid ML MD-risk candidate.
-- The gated ML planning candidate is the current best backend score and is now the main enough-history FastAPI forecast path. It keeps p50 MD error unchanged from the stable planner, preserves ML p90/p95 gains, and slightly improves RMSE/WAPE. API runtime needs optimization before broad handoff because synchronous bundled analysis currently takes several minutes.
+- The gated ML planning candidate is not accepted as the main API model. It keeps p50 MD error unchanged and only slightly improves RMSE/WAPE, so the runtime cost is not justified.
 
 ## Next Actions
 - Review the fresh notebook metric score before deciding whether and how to promote the `enhanced_peak_priority` peak-alert overlay into the production app forecast path.
@@ -101,7 +101,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Add stronger presentation/report formatting for judge-facing executive summaries.
 - Expand validation and forecasting coverage with additional edge-case tests.
 - Do not promote `forecast_full_ml_planning_profile` unless the next iteration fixes p50/RMSE regression while retaining the p90 MD improvement.
-- Before sharing the GitHub repo broadly, reduce synchronous analysis runtime by caching model/reference data, trimming repeated sensitivity runs, or moving heavier diagnostics out of the default endpoint.
+- Before reconsidering ML promotion, require material metric improvement plus acceptable synchronous API runtime, or move heavy model diagnostics behind a separate backend-only endpoint.
 
 ## Current Decisions
 - Primary audience: future agents and teammates, with judge readability as a secondary benefit.

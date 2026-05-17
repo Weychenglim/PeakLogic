@@ -1,4 +1,4 @@
-import { Factory, TrendingUp, Zap, BarChart, Upload, Settings, HelpCircle, Plus } from 'lucide-react';
+import { Factory, TrendingUp, Zap, BarChart, Upload, Settings, Plus } from 'lucide-react';
 import { NAV_ITEMS } from '../constants';
 import { cn } from '../lib/utils';
 
@@ -55,11 +55,6 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <Settings size={20} />
           <span className="text-sm font-medium">Settings</span>
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 rounded-xl transition-colors">
-          <HelpCircle size={20} />
-          <span className="text-sm font-medium">Support</span>
-        </button>
-
         <div className="flex items-center gap-3 px-4 py-4 mt-4 border-t border-slate-200 dark:border-slate-800">
           <div className="w-8 h-8 rounded-full bg-primary-fixed flex-shrink-0 overflow-hidden border border-outline-variant/30">
             <img 

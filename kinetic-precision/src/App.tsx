@@ -33,6 +33,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState<LoadingStepId>('upload');
   const [error, setError] = useState<string | null>(null);
+  const [waitingForProfileRedirect, setWaitingForProfileRedirect] = useState(false);
 
   const activeTitle = useMemo(() => {
     return NAV_ITEMS.find(item => item.id === activeTab)?.label || 'Dashboard';
@@ -151,7 +152,16 @@ export default function App() {
             error={error}
             onAssumptionsChange={setAssumptions}
             onAnalyzeBundled={sourceFile => runBundledAnalysis(sourceFile)}
-            onReanalyze={() => selectedSourceFile && runBundledAnalysis(selectedSourceFile)}
+            onReanalyze={async () => {
+              if (!selectedSourceFile) return;
+              setWaitingForProfileRedirect(true);
+              try {
+                await runBundledAnalysis(selectedSourceFile);
+              } finally {
+                setWaitingForProfileRedirect(false);
+                setActiveTab('profile');
+              }
+            }}
             onUpload={handleUpload}
           />
         );
@@ -185,7 +195,16 @@ export default function App() {
             error={error}
             onAssumptionsChange={setAssumptions}
             onAnalyzeBundled={sourceFile => runBundledAnalysis(sourceFile)}
-            onReanalyze={() => selectedSourceFile && runBundledAnalysis(selectedSourceFile)}
+            onReanalyze={async () => {
+              if (!selectedSourceFile) return;
+              setWaitingForProfileRedirect(true);
+              try {
+                await runBundledAnalysis(selectedSourceFile);
+              } finally {
+                setWaitingForProfileRedirect(false);
+                setActiveTab('profile');
+              }
+            }}
             onUpload={handleUpload}
           />
         );
@@ -216,10 +235,34 @@ export default function App() {
       </main>
 
       {/* Global CSS for animations */}
+      {waitingForProfileRedirect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-outline-variant/20 bg-surface-container-lowest p-6 shadow-2xl">
+            <p className="text-xs font-black uppercase tracking-widest text-on-surface-variant">Applying assumptions</p>
+            <p className="mt-2 text-base font-bold text-on-surface">Recalculating the plan. You will be sent to Site Profile when it finishes.</p>
+            <div className="mt-5 text-sm font-semibold text-on-surface-variant">
+              <span className="loading-dots">Loading</span>
+            </div>
+          </div>
+        </div>
+      )}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loadingDots {
+          0% { content: ''; }
+          25% { content: '.'; }
+          50% { content: '..'; }
+          75% { content: '...'; }
+          100% { content: ''; }
+        }
+        .loading-dots::after {
+          content: '';
+          display: inline-block;
+          margin-left: 4px;
+          animation: loadingDots 1.2s steps(1, end) infinite;
         }
         .animate-in {
           animation: fadeIn 0.4s ease-out forwards;

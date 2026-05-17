@@ -30,24 +30,29 @@ export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarPr
           const isActive = activeTab === item.id;
           const isDisabled = disabledTabs.includes(item.id);
           return (
-            <button
+            <span
               key={item.id}
-              onClick={() => {
-                if (!isDisabled) onTabChange(item.id);
-              }}
-              disabled={isDisabled}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98]",
-                isActive 
-                  ? "text-primary font-bold border-r-4 border-primary bg-primary/5 rounded-r-none" 
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50",
-                isDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
-              )}
-              aria-disabled={isDisabled}
+              title={isDisabled ? 'Run an analysis to unlock this section.' : undefined}
+              className={isDisabled ? 'block' : undefined}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-sm font-medium">{item.label}</span>
-            </button>
+              <button
+                onClick={() => {
+                  if (!isDisabled) onTabChange(item.id);
+                }}
+                disabled={isDisabled}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98]",
+                  isActive 
+                    ? "text-primary font-bold border-r-4 border-primary bg-primary/5 rounded-r-none" 
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50",
+                  isDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
+                )}
+                aria-disabled={isDisabled}
+              >
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-sm font-medium">{item.label}</span>
+              </button>
+            </span>
           );
         })}
       </nav>

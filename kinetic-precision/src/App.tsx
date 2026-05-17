@@ -36,7 +36,7 @@ export default function App() {
   const [waitingForProfileRedirect, setWaitingForProfileRedirect] = useState(false);
 
   useEffect(() => {
-    if (!analysis && (activeTab === 'profile' || activeTab === 'forecast')) {
+    if (!analysis && (activeTab === 'profile' || activeTab === 'forecast' || activeTab === 'optimization' || activeTab === 'summary')) {
       setActiveTab('upload');
     }
   }, [analysis, activeTab]);
@@ -223,7 +223,7 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        disabledTabs={analysis ? [] : ['profile', 'forecast']}
+        disabledTabs={analysis ? [] : ['profile', 'forecast', 'optimization', 'summary']}
       />
       
       {/* Main Content Area */}

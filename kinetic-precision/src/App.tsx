@@ -35,6 +35,12 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [waitingForProfileRedirect, setWaitingForProfileRedirect] = useState(false);
 
+  useEffect(() => {
+    if (!analysis && (activeTab === 'profile' || activeTab === 'forecast')) {
+      setActiveTab('upload');
+    }
+  }, [analysis, activeTab]);
+
   const activeTitle = useMemo(() => {
     return NAV_ITEMS.find(item => item.id === activeTab)?.label || 'Dashboard';
   }, [activeTab]);
@@ -214,7 +220,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-surface flex">
       {/* Side Navigation */}
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        disabledTabs={analysis ? [] : ['profile', 'forecast']}
+      />
       
       {/* Main Content Area */}
       <main className="flex-1 ml-64 min-h-screen relative overflow-x-hidden">

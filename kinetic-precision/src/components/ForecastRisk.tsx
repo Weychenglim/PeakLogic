@@ -13,7 +13,7 @@ interface ForecastRiskProps {
 function compactForecast(analysis: AnalysisResult | null) {
   return (analysis?.forecast.preview ?? []).filter((_, index) => index % 4 === 0).map(point => ({
     rawTime: point.interval_end,
-    time: new Date(point.interval_end).toLocaleString([], { day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     forecast: Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import),
     overlayScore: Number(point.peak_risk_overlay_score ?? 0),
     overlayPoint: point.is_peak_risk_overlay ? Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import) : null,

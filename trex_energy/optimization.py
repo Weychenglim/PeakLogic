@@ -16,6 +16,7 @@ class OptimizationConfig:
     battery_kw_options: list[float] = field(default_factory=lambda: [0.0, 100.0, 200.0])
     battery_kwh_options: list[float] = field(default_factory=lambda: [0.0, 200.0, 400.0])
     solar_kwp_options: list[float] = field(default_factory=lambda: [0.0, 100.0, 200.0])
+    base_solar_kwp: float = 0.0
     battery_capex_rm_per_kw: float = 1400.0
     battery_capex_rm_per_kwh: float = 900.0
     solar_capex_rm_per_kwp: float = 3200.0
@@ -118,9 +119,12 @@ def clear_sky_solar_factor(timestamp: pd.Timestamp) -> float:
     return clear_sky_sine_solar_factor(timestamp)
 
 
-def _apply_solar(profile: pd.DataFrame, solar_kwp: float) -> pd.DataFrame:
+def _apply_solar(profile: pd.DataFrame, solar_kwp: float, base_solar_kwp: float) -> pd.DataFrame:
     working = profile.copy()
-    working["solar_offset_kw"] = working["interval_end"].map(lambda ts: solar_kwp * _solar_profile_factor(pd.Timestamp(ts)))
+    total_solar_kwp = max(0.0, float(base_solar_kwp) + float(solar_kwp))
+    working["solar_offset_kw"] = working["interval_end"].map(
+        lambda ts: total_solar_kwp * _solar_profile_factor(pd.Timestamp(ts))
+    )
     working["after_solar_kw_import"] = (working["post_shift_kw_import"] - working["solar_offset_kw"]).clip(lower=0.0)
     return working
 
@@ -185,7 +189,7 @@ def evaluate_site_scenarios(
 
     combos = list(product(config.battery_kw_options, config.battery_kwh_options, config.solar_kwp_options))
     for scenario_index, (battery_kw, battery_kwh, solar_kwp) in enumerate(combos[: config.max_scenarios], start=1):
-        solar_profile = _apply_solar(shifted, solar_kwp)
+        solar_profile = _apply_solar(shifted, solar_kwp, config.base_solar_kwp)
         optimized = _apply_battery(solar_profile, battery_kw, battery_kwh)
         optimized_bill = calculate_bill_components(_bill_input_frame(optimized, "optimized_kw_import"), config.tariff)
         savings_rm = baseline_bill.total_cost_rm - optimized_bill.total_cost_rm
@@ -258,6 +262,7 @@ def _copy_config_with(
     battery_capex_rm_per_kw: float | None = None,
     battery_capex_rm_per_kwh: float | None = None,
     solar_capex_rm_per_kwp: float | None = None,
+    base_solar_kwp: float | None = None,
 ) -> OptimizationConfig:
     return OptimizationConfig(
         flexible_load_fraction=config.flexible_load_fraction,
@@ -265,6 +270,7 @@ def _copy_config_with(
         battery_kw_options=config.battery_kw_options,
         battery_kwh_options=config.battery_kwh_options,
         solar_kwp_options=config.solar_kwp_options,
+        base_solar_kwp=config.base_solar_kwp if base_solar_kwp is None else base_solar_kwp,
         battery_capex_rm_per_kw=(
             config.battery_capex_rm_per_kw if battery_capex_rm_per_kw is None else battery_capex_rm_per_kw
         ),

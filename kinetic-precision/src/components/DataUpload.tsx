@@ -24,13 +24,16 @@ function AssumptionField({
   label,
   value,
   step,
+  placeholder,
   onChange,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   step?: number;
-  onChange: (value: number) => void;
+  placeholder?: string;
+  onChange: (value: number | null) => void;
 }) {
+  const displayValue = Number.isFinite(value) ? value : '';
   return (
     <label className="block">
       <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{label}</span>
@@ -38,8 +41,12 @@ function AssumptionField({
         type="number"
         min="0"
         step={step ?? 1}
-        value={value}
-        onChange={event => onChange(Number(event.target.value))}
+        value={displayValue}
+        placeholder={placeholder}
+        onChange={event => {
+          const raw = event.target.value;
+          onChange(raw === '' ? null : Number(raw));
+        }}
         className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-lowest px-3 py-2 text-sm font-bold outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
       />
     </label>
@@ -60,9 +67,12 @@ export function DataUpload({
 }: DataUploadProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const validation = analysis?.validation;
-  const updateAssumption = (key: keyof PlanningAssumptions, value: number) => {
+  const updateAssumption = (key: keyof PlanningAssumptions, value: number | null) => {
     onAssumptionsChange({ ...assumptions, [key]: value });
   };
+  const existingSolarPlaceholder = analysis?.metadata.existing_pv_kwp != null
+    ? `Detected: ${analysis.metadata.existing_pv_kwp.toFixed(0)} kWp`
+    : 'Enter peak installed kWp';
 
   return (
     <div className="animate-in fade-in duration-500 space-y-8">
@@ -185,6 +195,13 @@ export function DataUpload({
               <AssumptionField label="MD rate RM/kW" value={assumptions.md_rate_rm_per_kw} step={0.01} onChange={value => updateAssumption('md_rate_rm_per_kw', value)} />
               <AssumptionField label="Peak energy RM/kWh" value={assumptions.peak_energy_rate_rm_per_kwh} step={0.001} onChange={value => updateAssumption('peak_energy_rate_rm_per_kwh', value)} />
               <AssumptionField label="Off-peak energy RM/kWh" value={assumptions.offpeak_energy_rate_rm_per_kwh} step={0.001} onChange={value => updateAssumption('offpeak_energy_rate_rm_per_kwh', value)} />
+              <AssumptionField
+                label="Existing solar kWp"
+                value={assumptions.existing_pv_kwp}
+                step={1}
+                placeholder={existingSolarPlaceholder}
+                onChange={value => updateAssumption('existing_pv_kwp', value)}
+              />
               <AssumptionField label="Battery RM/kW" value={assumptions.battery_capex_rm_per_kw} step={50} onChange={value => updateAssumption('battery_capex_rm_per_kw', value)} />
               <AssumptionField label="Battery RM/kWh" value={assumptions.battery_capex_rm_per_kwh} step={50} onChange={value => updateAssumption('battery_capex_rm_per_kwh', value)} />
               <AssumptionField label="Solar RM/kWp" value={assumptions.solar_capex_rm_per_kwp} step={50} onChange={value => updateAssumption('solar_capex_rm_per_kwp', value)} />

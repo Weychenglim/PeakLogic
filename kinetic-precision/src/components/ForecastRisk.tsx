@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, BatteryCharging, Clock, Gauge, Radar, ShieldCheck, Zap } from 'lucide-react';
 import { Area, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
@@ -10,10 +11,10 @@ interface ForecastRiskProps {
   error: string | null;
 }
 
-function compactForecast(analysis: AnalysisResult | null) {
-  return (analysis?.forecast.preview ?? []).filter((_, index) => index % 4 === 0).map(point => ({
+function compactForecast(points: AnalysisResult['forecast']['points'], stride: number) {
+  return points.filter((_, index) => index % stride === 0).map(point => ({
     rawTime: point.interval_end,
-    time: new Date(point.interval_end).toLocaleString([], { day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     forecast: Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import),
     overlayScore: Number(point.peak_risk_overlay_score ?? 0),
     overlayPoint: point.is_peak_risk_overlay ? Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import) : null,
@@ -33,9 +34,21 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
     return <EmptyAnalysis title="No forecast yet" description="Run an analysis to inspect predicted demand, peak-risk windows, and recommended mitigation actions." />;
   }
 
-  const data = compactForecast(analysis);
-  const overlayEvents = analysis.forecast.preview.filter(point => point.is_peak_risk_overlay).length;
-  const peakPoint = [...analysis.forecast.preview].sort((a, b) => {
+  const windowOptions = [
+    { id: '12h', label: '12h', intervals: 24 },
+    { id: '24h', label: '24h', intervals: 48 },
+    { id: '48h', label: '48h', intervals: 96 },
+    { id: '7d', label: '7 days', intervals: 7 * 48 },
+    { id: '1m', label: '1 month', intervals: 30 * 48 },
+  ];
+  const [windowSize, setWindowSize] = useState('24h');
+  const selectedWindow = windowOptions.find(option => option.id === windowSize) ?? windowOptions[1];
+  const forecastPoints = analysis.forecast.points.length > 0 ? analysis.forecast.points : analysis.forecast.preview;
+  const windowPoints = forecastPoints.slice(-selectedWindow.intervals);
+  const stride = Math.max(1, Math.floor(windowPoints.length / 96));
+  const data = compactForecast(windowPoints, stride);
+  const overlayEvents = windowPoints.filter(point => point.is_peak_risk_overlay).length;
+  const peakPoint = [...windowPoints].sort((a, b) => {
     const aLoad = Number(a.calibrated_p95_stress_kw ?? a.md_risk_envelope_kw ?? a.forecast_kw_import);
     const bLoad = Number(b.calibrated_p95_stress_kw ?? b.md_risk_envelope_kw ?? b.forecast_kw_import);
     return bLoad - aLoad;
@@ -50,9 +63,21 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight text-on-surface">Grid Load Forecast</h3>
-          <p className="text-on-surface-variant mt-1">48-hour peak-risk view for {analysis.metadata.site_id}</p>
+          <p className="text-on-surface-variant mt-1">{selectedWindow.label} peak-risk view for {analysis.metadata.site_id}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <label className="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+            Window
+            <select
+              value={windowSize}
+              onChange={event => setWindowSize(event.target.value)}
+              className="rounded-full border border-outline-variant/20 bg-surface-container-lowest px-3 py-1 text-[11px] font-black text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+            >
+              {windowOptions.map(option => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
           <div className="px-4 py-2 bg-surface-container-low rounded-xl flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-secondary" />
             <span className="text-sm font-medium">Site live</span>
@@ -132,7 +157,7 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
             <span className="rounded-full bg-primary-fixed px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">{overlayEvents} alerts</span>
           </div>
           <div className="grid grid-cols-6 gap-1">
-            {analysis.forecast.preview.slice(0, 36).map(point => (
+            {windowPoints.slice(0, 36).map(point => (
               <div
                 key={point.interval_end}
                 className={`h-10 rounded-md ${point.is_peak_risk_overlay ? 'bg-tertiary-fixed border border-tertiary/20' : 'bg-primary-fixed/60'}`}

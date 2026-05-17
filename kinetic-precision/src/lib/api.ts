@@ -140,6 +140,7 @@ export interface PlanningAssumptions {
   planning_months: number;
   growth_rate_pct: number;
   ev_load_kw: number;
+  existing_pv_kwp: number | null;
   md_rate_rm_per_kw: number;
   peak_energy_rate_rm_per_kwh: number;
   offpeak_energy_rate_rm_per_kwh: number;
@@ -152,6 +153,7 @@ export const DEFAULT_ASSUMPTIONS: PlanningAssumptions = {
   planning_months: 1,
   growth_rate_pct: 0,
   ev_load_kw: 0,
+  existing_pv_kwp: null,
   md_rate_rm_per_kw: 97.06,
   peak_energy_rate_rm_per_kwh: 0.455,
   offpeak_energy_rate_rm_per_kwh: 0.365,
@@ -178,21 +180,25 @@ export async function fetchBundledSites(): Promise<BundledSite[]> {
 }
 
 export async function analyzeBundled(sourceFile: string, assumptions = DEFAULT_ASSUMPTIONS): Promise<AnalysisResult> {
+  const payload: Record<string, unknown> = {
+    source_file: sourceFile,
+    months: assumptions.planning_months,
+    growth_rate_pct: assumptions.growth_rate_pct,
+    ev_load_kw: assumptions.ev_load_kw,
+    md_rate_rm_per_kw: assumptions.md_rate_rm_per_kw,
+    peak_energy_rate_rm_per_kwh: assumptions.peak_energy_rate_rm_per_kwh,
+    offpeak_energy_rate_rm_per_kwh: assumptions.offpeak_energy_rate_rm_per_kwh,
+    battery_capex_rm_per_kw: assumptions.battery_capex_rm_per_kw,
+    battery_capex_rm_per_kwh: assumptions.battery_capex_rm_per_kwh,
+    solar_capex_rm_per_kwp: assumptions.solar_capex_rm_per_kwp,
+  };
+  if (assumptions.existing_pv_kwp !== null) {
+    payload.existing_pv_kwp = assumptions.existing_pv_kwp;
+  }
   const response = await fetch(`${API_BASE_URL}/api/analyze/bundled`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source_file: sourceFile,
-      months: assumptions.planning_months,
-      growth_rate_pct: assumptions.growth_rate_pct,
-      ev_load_kw: assumptions.ev_load_kw,
-      md_rate_rm_per_kw: assumptions.md_rate_rm_per_kw,
-      peak_energy_rate_rm_per_kwh: assumptions.peak_energy_rate_rm_per_kwh,
-      offpeak_energy_rate_rm_per_kwh: assumptions.offpeak_energy_rate_rm_per_kwh,
-      battery_capex_rm_per_kw: assumptions.battery_capex_rm_per_kw,
-      battery_capex_rm_per_kwh: assumptions.battery_capex_rm_per_kwh,
-      solar_capex_rm_per_kwp: assumptions.solar_capex_rm_per_kwp,
-    }),
+    body: JSON.stringify(payload),
   });
   return parseJson<AnalysisResult>(response);
 }
@@ -204,6 +210,9 @@ export async function uploadAnalysis(file: File, assumptions = DEFAULT_ASSUMPTIO
   form.append('active_power_unit', 'auto');
   form.append('growth_rate_pct', String(assumptions.growth_rate_pct));
   form.append('ev_load_kw', String(assumptions.ev_load_kw));
+  if (assumptions.existing_pv_kwp !== null) {
+    form.append('existing_pv_kwp', String(assumptions.existing_pv_kwp));
+  }
   form.append('md_rate_rm_per_kw', String(assumptions.md_rate_rm_per_kw));
   form.append('peak_energy_rate_rm_per_kwh', String(assumptions.peak_energy_rate_rm_per_kwh));
   form.append('offpeak_energy_rate_rm_per_kwh', String(assumptions.offpeak_energy_rate_rm_per_kwh));

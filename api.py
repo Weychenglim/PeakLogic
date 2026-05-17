@@ -49,6 +49,7 @@ class BundledAnalysisRequest(BaseModel):
     active_power_unit: str = "auto"
     growth_rate_pct: float = 0.0
     ev_load_kw: float = 0.0
+    existing_pv_kwp: float | None = Field(default=None, ge=0)
     use_md_risk_envelope: bool = True
     md_rate_rm_per_kw: float = 97.06
     peak_energy_rate_rm_per_kwh: float = 0.455
@@ -107,6 +108,7 @@ def _build_analysis_payload(
     months: int,
     growth_rate_pct: float = 0.0,
     ev_load_kw: float = 0.0,
+    existing_pv_kwp: float | None = None,
     use_md_risk_envelope: bool = True,
     md_rate_rm_per_kw: float = 97.06,
     peak_energy_rate_rm_per_kwh: float = 0.455,
@@ -131,11 +133,15 @@ def _build_analysis_payload(
         peak_energy_rate_rm_per_kwh=peak_energy_rate_rm_per_kwh,
         offpeak_energy_rate_rm_per_kwh=offpeak_energy_rate_rm_per_kwh,
     )
+    metadata_existing_pv = getattr(metadata, "existing_pv_kwp", None)
+    resolved_existing_pv = existing_pv_kwp if existing_pv_kwp is not None else metadata_existing_pv
+    base_solar_kwp = float(resolved_existing_pv) if resolved_existing_pv is not None else 0.0
     optimization_config = OptimizationConfig(
         use_md_risk_envelope=use_md_risk_envelope,
         battery_capex_rm_per_kw=battery_capex_rm_per_kw,
         battery_capex_rm_per_kwh=battery_capex_rm_per_kwh,
         solar_capex_rm_per_kwp=solar_capex_rm_per_kwp,
+        base_solar_kwp=base_solar_kwp,
         tariff=tariff,
     )
     optimization = evaluate_site_scenarios(forecast, optimization_config)
@@ -156,6 +162,7 @@ def _build_analysis_payload(
         "planning_months": months,
         "growth_rate_pct": growth_rate_pct,
         "ev_load_kw": ev_load_kw,
+        "existing_pv_kwp": resolved_existing_pv,
         "md_rate_rm_per_kw": md_rate_rm_per_kw,
         "peak_energy_rate_rm_per_kwh": peak_energy_rate_rm_per_kwh,
         "offpeak_energy_rate_rm_per_kwh": offpeak_energy_rate_rm_per_kwh,
@@ -240,6 +247,7 @@ def analyze_bundled(request: BundledAnalysisRequest) -> dict[str, Any]:
         months=request.months,
         growth_rate_pct=request.growth_rate_pct,
         ev_load_kw=request.ev_load_kw,
+        existing_pv_kwp=request.existing_pv_kwp,
         use_md_risk_envelope=request.use_md_risk_envelope,
         md_rate_rm_per_kw=request.md_rate_rm_per_kw,
         peak_energy_rate_rm_per_kwh=request.peak_energy_rate_rm_per_kwh,
@@ -257,6 +265,7 @@ async def analyze_upload(
     active_power_unit: str = Form("auto"),
     growth_rate_pct: float = Form(0.0),
     ev_load_kw: float = Form(0.0),
+    existing_pv_kwp: float | None = Form(None),
     use_md_risk_envelope: bool = Form(True),
     md_rate_rm_per_kw: float = Form(97.06),
     peak_energy_rate_rm_per_kwh: float = Form(0.455),
@@ -284,6 +293,7 @@ async def analyze_upload(
         months=months,
         growth_rate_pct=growth_rate_pct,
         ev_load_kw=ev_load_kw,
+        existing_pv_kwp=existing_pv_kwp,
         use_md_risk_envelope=use_md_risk_envelope,
         md_rate_rm_per_kw=md_rate_rm_per_kw,
         peak_energy_rate_rm_per_kwh=peak_energy_rate_rm_per_kwh,

@@ -4,15 +4,30 @@ Local React + FastAPI decision-support demo for TREX maximum-demand planning, fo
 
 ## Start Locally
 
+Activate the Python environment, then install dependencies once from the repository root:
+
+```powershell
+.\.venv312\Scripts\Activate.ps1
+```
+
+```powershell
+pip install -e .
+```
+
+```powershell
+cd kinetic-precision
+npm install
+```
+
 Open two terminals from the repository root.
 
-### 1. Backend
+### Backend (FastAPI)
 
 ```powershell
 .\.venv312\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-Check:
+Health check:
 
 ```powershell
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/api/health
@@ -24,11 +39,10 @@ Expected response:
 {"status":"ok"}
 ```
 
-### 2. Frontend
+### Frontend (Vite)
 
 ```powershell
 cd kinetic-precision
-npm install
 npm run dev
 ```
 
@@ -38,13 +52,11 @@ Open:
 http://localhost:3000
 ```
 
-The frontend defaults to:
+The frontend calls the API at:
 
 ```text
 http://localhost:8000
 ```
-
-for API calls.
 
 ## Current Forecast Path
 

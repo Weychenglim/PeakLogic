@@ -1,10 +1,11 @@
-import { Factory, TrendingUp, Zap, BarChart, Upload, Settings, HelpCircle, Plus } from 'lucide-react';
+import { Factory, TrendingUp, Zap, BarChart, Upload, Settings, Plus } from 'lucide-react';
 import { NAV_ITEMS } from '../constants';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (id: string) => void;
+  disabledTabs?: string[];
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -15,7 +16,7 @@ const ICON_MAP: Record<string, any> = {
   BarChart,
 };
 
-export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarProps) {
   return (
     <aside id="sidebar" className="h-screen w-64 fixed left-0 top-0 flex flex-col py-6 bg-slate-50 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
       <div className="px-6 mb-10">
@@ -27,20 +28,31 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {NAV_ITEMS.map((item) => {
           const Icon = ICON_MAP[item.icon];
           const isActive = activeTab === item.id;
+          const isDisabled = disabledTabs.includes(item.id);
           return (
-            <button
+            <span
               key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98]",
-                isActive 
-                  ? "text-primary font-bold border-r-4 border-primary bg-primary/5 rounded-r-none" 
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
-              )}
+              title={isDisabled ? 'Run an analysis to unlock this section.' : undefined}
+              className={isDisabled ? 'block' : undefined}
             >
-              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-sm font-medium">{item.label}</span>
-            </button>
+              <button
+                onClick={() => {
+                  if (!isDisabled) onTabChange(item.id);
+                }}
+                disabled={isDisabled}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98]",
+                  isActive 
+                    ? "text-primary font-bold border-r-4 border-primary bg-primary/5 rounded-r-none" 
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50",
+                  isDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent"
+                )}
+                aria-disabled={isDisabled}
+              >
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="text-sm font-medium">{item.label}</span>
+              </button>
+            </span>
           );
         })}
       </nav>
@@ -55,11 +67,6 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <Settings size={20} />
           <span className="text-sm font-medium">Settings</span>
         </button>
-        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 rounded-xl transition-colors">
-          <HelpCircle size={20} />
-          <span className="text-sm font-medium">Support</span>
-        </button>
-
         <div className="flex items-center gap-3 px-4 py-4 mt-4 border-t border-slate-200 dark:border-slate-800">
           <div className="w-8 h-8 rounded-full bg-primary-fixed flex-shrink-0 overflow-hidden border border-outline-variant/30">
             <img 

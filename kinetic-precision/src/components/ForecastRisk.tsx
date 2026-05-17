@@ -2,22 +2,27 @@ import { AlertCircle, BatteryCharging, Clock, Gauge, Radar, ShieldCheck, Zap } f
 import { Area, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult } from '../lib/api';
+import {
+  buildForecastChartPoints,
+  buildPeakTimelineItems,
+  countPeakRiskAlerts,
+  forecastLoad,
+  forecastWindowLabel,
+  selectForecastPeakPoint,
+} from './forecastWindow';
+
+export {
+  buildForecastChartPoints,
+  buildPeakTimelineItems as buildForecastPeakTimelineItems,
+  countPeakRiskAlerts,
+  selectForecastPeakPoint,
+} from './forecastWindow';
 
 interface ForecastRiskProps {
   analysis: AnalysisResult | null;
   loading: boolean;
   loadingStep: LoadingStepId;
   error: string | null;
-}
-
-function compactForecast(analysis: AnalysisResult | null) {
-  return (analysis?.forecast.preview ?? []).filter((_, index) => index % 4 === 0).map(point => ({
-    rawTime: point.interval_end,
-    time: new Date(point.interval_end).toLocaleString([], { day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    forecast: Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import),
-    overlayScore: Number(point.peak_risk_overlay_score ?? 0),
-    overlayPoint: point.is_peak_risk_overlay ? Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import) : null,
-  }));
 }
 
 function formatTimeWindow(startIso: string, hours = 2) {
@@ -33,16 +38,14 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
     return <EmptyAnalysis title="No forecast yet" description="Run an analysis to inspect predicted demand, peak-risk windows, and recommended mitigation actions." />;
   }
 
-  const data = compactForecast(analysis);
-  const overlayEvents = analysis.forecast.preview.filter(point => point.is_peak_risk_overlay).length;
-  const peakPoint = [...analysis.forecast.preview].sort((a, b) => {
-    const aLoad = Number(a.calibrated_p95_stress_kw ?? a.md_risk_envelope_kw ?? a.forecast_kw_import);
-    const bLoad = Number(b.calibrated_p95_stress_kw ?? b.md_risk_envelope_kw ?? b.forecast_kw_import);
-    return bLoad - aLoad;
-  })[0];
-  const peakLoad = peakPoint ? Number(peakPoint.calibrated_p95_stress_kw ?? peakPoint.md_risk_envelope_kw ?? peakPoint.forecast_kw_import) : 0;
+  const data = buildForecastChartPoints(analysis);
+  const overlayEvents = countPeakRiskAlerts(analysis);
+  const peakPoint = selectForecastPeakPoint(analysis);
+  const peakLoad = peakPoint ? forecastLoad(peakPoint) : 0;
   const peakTime = peakPoint?.interval_end ?? data[0]?.rawTime ?? new Date().toISOString();
   const chartPeak = data.reduce((peak, point) => (point.forecast > peak.forecast ? point : peak), data[0] ?? { time: '', forecast: 0 });
+  const timelineItems = buildPeakTimelineItems(analysis);
+  const windowLabel = forecastWindowLabel(analysis);
   const best = analysis.optimization.best_scenario;
 
   return (
@@ -50,7 +53,7 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h3 className="text-3xl font-extrabold tracking-tight text-on-surface">Grid Load Forecast</h3>
-          <p className="text-on-surface-variant mt-1">48-hour peak-risk view for {analysis.metadata.site_id}</p>
+          <p className="text-on-surface-variant mt-1">{windowLabel} peak-risk view for {analysis.metadata.site_id}</p>
         </div>
         <div className="flex gap-3">
           <div className="px-4 py-2 bg-surface-container-low rounded-xl flex items-center gap-2">
@@ -91,7 +94,7 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
           <div className="rounded-xl border-l-4 border-tertiary bg-tertiary-fixed p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h4 className="font-bold">Today's Peak</h4>
+              <h4 className="font-bold">Window Peak</h4>
               <span className="rounded-full bg-error px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white">High risk</span>
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Estimated window</p>
@@ -127,16 +130,16 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h4 className="font-bold">Peak Risk Timeline</h4>
-              <p className="text-xs font-medium text-on-surface-variant">Today's forecast</p>
+              <p className="text-xs font-medium text-on-surface-variant">{windowLabel}</p>
             </div>
             <span className="rounded-full bg-primary-fixed px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">{overlayEvents} alerts</span>
           </div>
-          <div className="grid grid-cols-6 gap-1">
-            {analysis.forecast.preview.slice(0, 36).map(point => (
+          <div className="grid gap-1 [grid-template-columns:repeat(auto-fit,minmax(18px,1fr))]">
+            {timelineItems.map(item => (
               <div
-                key={point.interval_end}
-                className={`h-10 rounded-md ${point.is_peak_risk_overlay ? 'bg-tertiary-fixed border border-tertiary/20' : 'bg-primary-fixed/60'}`}
-                title={`${new Date(point.interval_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                key={item.key}
+                className={`h-8 rounded-md ${item.level === 'critical' ? 'bg-tertiary-fixed border border-tertiary/20' : item.level === 'risk' ? 'bg-primary-fixed' : 'bg-surface-container-low'}`}
+                title={`${item.time}: ${item.label}, ${item.peakLoad.toFixed(0)} kW`}
               />
             ))}
           </div>

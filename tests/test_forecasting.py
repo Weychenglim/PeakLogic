@@ -335,6 +335,161 @@ class ForecastingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Not enough history"):
             forecast_gated_ml_planning_profile(frame, months=1)
 
+    def test_monthly_md_correction_model_returns_monthly_planning_contract(self) -> None:
+        from trex_energy.forecasting import forecast_monthly_md_corrected_profile
+
+        target = self._synthetic_planning_frame(days=75)
+        reference = self._synthetic_planning_frame(days=75)
+        reference["site_id"] = "reference_site"
+        reference["kw_import"] = reference["kw_import"] * 1.18
+
+        forecast = forecast_monthly_md_corrected_profile(
+            target,
+            reference_frames=[reference],
+            months=1,
+            max_training_rows=240,
+        )
+
+        self.assertEqual(len(forecast), 30 * 48)
+        self.assertEqual(set(forecast["planning_method"].unique()), {"monthly_md_correction_gradient_boosting"})
+        self.assertTrue(
+            {
+                "forecast_kw_import",
+                "p50_forecast_kw",
+                "p90_md_risk_kw",
+                "p95_stress_kw",
+                "md_risk_envelope_kw",
+                "ml_monthly_md_target_kw",
+                "ml_monthly_md_correction_applied",
+            }.issubset(forecast.columns)
+        )
+        self.assertTrue((forecast["forecast_kw_import"] >= 0.0).all())
+        self.assertTrue((forecast["p90_md_risk_kw"] >= forecast["p50_forecast_kw"]).all())
+        self.assertTrue((forecast["p95_stress_kw"] >= forecast["p90_md_risk_kw"]).all())
+        self.assertTrue((forecast["md_risk_envelope_kw"] == forecast["calibrated_p95_stress_kw"]).all())
+
+    def test_monthly_md_correction_model_changes_p50_monthly_md(self) -> None:
+        from trex_energy.forecasting import forecast_monthly_md_corrected_profile, forecast_monthly_planning_profile
+
+        target = self._synthetic_planning_frame(days=75)
+        final_month = target["interval_end"] >= target["interval_end"].max() - pd.Timedelta(days=30)
+        evening = target["interval_end"].dt.hour.between(18, 22)
+        target.loc[final_month & evening, "kw_import"] += 75.0
+
+        baseline = forecast_monthly_planning_profile(target, months=1)
+        forecast = forecast_monthly_md_corrected_profile(target, months=1, max_training_rows=240)
+
+        self.assertNotAlmostEqual(
+            float(forecast["p50_forecast_kw"].max()),
+            float(baseline["p50_forecast_kw"].max()),
+        )
+        self.assertGreater(int(forecast["ml_monthly_md_correction_applied"].sum()), 0)
+
+    def test_monthly_md_correction_model_requires_enough_history(self) -> None:
+        from trex_energy.forecasting import forecast_monthly_md_corrected_profile
+
+        frame = self._synthetic_planning_frame(days=12)
+
+        with self.assertRaisesRegex(ValueError, "Not enough history"):
+            forecast_monthly_md_corrected_profile(frame, months=1)
+
+    def test_md_ensemble_model_returns_monthly_planning_contract(self) -> None:
+        from trex_energy.forecasting import forecast_md_ensemble_profile
+
+        target = self._synthetic_planning_frame(days=75)
+        reference = self._synthetic_planning_frame(days=75)
+        reference["site_id"] = "reference_site"
+        reference["kw_import"] = reference["kw_import"] * 1.18
+
+        forecast = forecast_md_ensemble_profile(
+            target,
+            reference_frames=[reference],
+            months=1,
+            max_training_rows=240,
+        )
+
+        self.assertEqual(len(forecast), 30 * 48)
+        self.assertEqual(set(forecast["planning_method"].unique()), {"md_ensemble_gradient_boosting"})
+        self.assertTrue(
+            {
+                "forecast_kw_import",
+                "p50_forecast_kw",
+                "p90_md_risk_kw",
+                "p95_stress_kw",
+                "md_risk_envelope_kw",
+                "ml_monthly_md_target_kw",
+                "ml_monthly_md_correction_applied",
+                "ml_p90_undercoverage_risk",
+                "ml_p95_undercoverage_risk",
+                "ml_md_peak_timing_score",
+            }.issubset(forecast.columns)
+        )
+        self.assertTrue((forecast["forecast_kw_import"] >= 0.0).all())
+        self.assertTrue((forecast["p90_md_risk_kw"] >= forecast["p50_forecast_kw"]).all())
+        self.assertTrue((forecast["p95_stress_kw"] >= forecast["p90_md_risk_kw"]).all())
+        self.assertTrue((forecast["md_risk_envelope_kw"] == forecast["calibrated_p95_stress_kw"]).all())
+
+    def test_md_ensemble_model_combines_corrected_p50_with_ml_risk_envelopes(self) -> None:
+        from trex_energy.forecasting import (
+            MonthlyMDCorrectionPolicy,
+            forecast_md_ensemble_profile,
+            forecast_ml_md_risk_profile,
+            forecast_monthly_md_corrected_profile,
+            forecast_monthly_planning_profile,
+        )
+
+        target = self._synthetic_planning_frame(days=75)
+        final_month = target["interval_end"] >= target["interval_end"].max() - pd.Timedelta(days=30)
+        evening = target["interval_end"].dt.hour.between(18, 22)
+        target.loc[final_month & evening, "kw_import"] += 75.0
+
+        baseline = forecast_monthly_planning_profile(target, months=1)
+        correction_policy = MonthlyMDCorrectionPolicy(p50_correction_strength=0.20)
+        corrected = forecast_monthly_md_corrected_profile(
+            target,
+            months=1,
+            max_training_rows=240,
+            correction_policy=correction_policy,
+        )
+        risk = forecast_ml_md_risk_profile(target, months=1, max_training_rows=240)
+        ensemble = forecast_md_ensemble_profile(
+            target,
+            months=1,
+            max_training_rows=240,
+            correction_policy=correction_policy,
+        )
+
+        self.assertNotAlmostEqual(
+            float(ensemble["p50_forecast_kw"].max()),
+            float(baseline["p50_forecast_kw"].max()),
+        )
+        pd.testing.assert_series_equal(
+            ensemble["p50_forecast_kw"],
+            corrected["p50_forecast_kw"],
+            check_names=False,
+        )
+        pd.testing.assert_series_equal(
+            ensemble["forecast_kw_import"],
+            corrected["forecast_kw_import"],
+            check_names=False,
+        )
+        self.assertGreaterEqual(
+            float(ensemble["p90_md_risk_kw"].max()),
+            float(risk["p90_md_risk_kw"].max()),
+        )
+        self.assertGreaterEqual(
+            float(ensemble["p95_stress_kw"].max()),
+            float(risk["p95_stress_kw"].max()),
+        )
+
+    def test_md_ensemble_model_requires_enough_history(self) -> None:
+        from trex_energy.forecasting import forecast_md_ensemble_profile
+
+        frame = self._synthetic_planning_frame(days=12)
+
+        with self.assertRaisesRegex(ValueError, "Not enough history"):
+            forecast_md_ensemble_profile(frame, months=1)
+
     def test_ml_md_risk_model_preserves_p50_forecast_path(self) -> None:
         from trex_energy.forecasting import (
             _localized_risk_envelope,

@@ -3,32 +3,20 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult } from '../lib/api';
 import { cn } from '../lib/utils';
+import {
+  buildPeakTimelineItems,
+  buildSiteLoadChartPoints,
+  countPeakRiskAlerts,
+  forecastWindowLabel,
+} from './forecastWindow';
+
+export { buildPeakTimelineItems, buildSiteLoadChartPoints } from './forecastWindow';
 
 interface SiteProfileProps {
   analysis: AnalysisResult | null;
   loading: boolean;
   loadingStep: LoadingStepId;
   error: string | null;
-}
-
-function chartPoints(analysis: AnalysisResult | null) {
-  return (analysis?.forecast.preview ?? []).filter((_, index) => index % 6 === 0).map(point => ({
-    time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    load: Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import),
-  }));
-}
-
-export function buildPeakTimelineItems(analysis: AnalysisResult) {
-  return analysis.forecast.preview.slice(0, 36).map(point => {
-    const hour = new Date(point.interval_end).getHours();
-    const isCritical = Boolean(point.is_peak_risk_overlay);
-    const isRisk = Number(point.peak_risk_overlay_score ?? point.peak_risk_score ?? 0) > 0.65;
-    return {
-      time: new Date(point.interval_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      label: hour < 10 ? 'Morning ramp' : hour < 17 ? 'Operational peak' : 'Evening MD risk',
-      level: isCritical ? 'critical' : isRisk ? 'risk' : 'normal',
-    };
-  });
 }
 
 export function buildSolarImpactComparison(analysis: AnalysisResult) {
@@ -56,7 +44,7 @@ export function buildSolarImpactComparison(analysis: AnalysisResult) {
 export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfileProps) {
   const profile = analysis?.profile;
   const metadata = analysis?.metadata;
-  const points = chartPoints(analysis);
+  const points = buildSiteLoadChartPoints(analysis);
   const best = analysis?.optimization.best_scenario;
   const maxPoint = points.reduce((peak, point) => (point.load > peak.load ? point : peak), points[0] ?? { time: '', load: 0 });
 
@@ -65,6 +53,8 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
     if (error) return <ErrorCard title="Site profile unavailable" message={error} />;
     return <EmptyAnalysis title="No site profile yet" description="Analyze a bundled workbook or upload an .xlsx file to view load shape, observed MD, solar metadata, and data-quality flags." />;
   }
+
+  const windowLabel = forecastWindowLabel(analysis);
 
   return (
     <div className="animate-in fade-in duration-500 space-y-8">
@@ -83,7 +73,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
           <div className="flex justify-between items-end mb-8">
             <div>
               <h3 className="font-headline text-2xl font-black text-on-surface leading-tight">Operational Load Curve</h3>
-              <p className="text-on-surface-variant text-sm font-medium mt-1">Forecasted site demand and the next peak-risk window.</p>
+              <p className="text-on-surface-variant text-sm font-medium mt-1">Forecasted site demand across the {windowLabel}.</p>
             </div>
             <div className="rounded-lg bg-primary-fixed px-3 py-2 text-right">
               <p className="text-[10px] font-black uppercase tracking-widest text-primary">Peak load</p>
@@ -124,7 +114,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
               <h3 className="font-headline text-lg font-black text-on-surface">Peak Risk Timeline</h3>
-              <p className="text-xs font-medium text-on-surface-variant">Today&apos;s forecast windows from the active analysis.</p>
+              <p className="text-xs font-medium text-on-surface-variant">{windowLabel} from the active analysis.</p>
             </div>
             <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary-fixed-dim" /> MD risk</span>
@@ -136,7 +126,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
             {buildPeakTimelineItems(analysis).map(item => (
               <div
                 key={item.time}
-                title={`${item.time} ${item.label}`}
+                title={`${item.time} ${item.label}: ${item.peakLoad.toFixed(0)} kW`}
                 className={cn(
                   'h-10 rounded-md border transition-transform hover:scale-[1.03]',
                   item.level === 'critical'
@@ -225,7 +215,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
           { label: 'Weekday Avg', value: `${profile?.weekday_avg_kw_import.toFixed(1)} kW`, icon: Factory },
           { label: 'Weekend Avg', value: `${profile?.weekend_avg_kw_import.toFixed(1)} kW`, icon: Activity },
           { label: 'Solar Capacity', value: metadata?.has_solar ? `${metadata.existing_pv_kwp?.toFixed(0) ?? 'Known'} kWp` : 'No solar', icon: Sun },
-          { label: 'Risk Alerts', value: `${analysis.forecast.preview.filter(point => point.is_peak_risk_overlay).length} windows`, icon: AlertTriangle },
+          { label: 'Risk Alerts', value: `${countPeakRiskAlerts(analysis)} windows`, icon: AlertTriangle },
           { label: 'MD Reduction', value: best ? `${(best.md_before - best.md_after).toFixed(0)} kW` : 'N/A', icon: Gauge },
           { label: 'Battery Plan', value: best ? `${best.battery_kw.toFixed(0)} kW` : 'N/A', icon: BatteryCharging },
           { label: 'Savings', value: best ? `RM ${best.savings_rm.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : 'N/A', icon: Zap },

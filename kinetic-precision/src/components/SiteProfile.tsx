@@ -10,7 +10,7 @@ import {
   forecastWindowLabel,
 } from './forecastWindow';
 
-export { buildPeakTimelineItems, buildSiteLoadChartPoints } from './forecastWindow';
+export { buildPeakTimelineItems, buildSiteLoadChartPoints, selectForecastWindowPoints } from './forecastWindow';
 
 interface SiteProfileProps {
   analysis: AnalysisResult | null;
@@ -73,7 +73,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
           <div className="flex justify-between items-end mb-8">
             <div>
               <h3 className="font-headline text-2xl font-black text-on-surface leading-tight">Operational Load Curve</h3>
-              <p className="text-on-surface-variant text-sm font-medium mt-1">Forecasted site demand across the {windowLabel}.</p>
+              <p className="text-on-surface-variant text-sm font-medium mt-1">Historical grid-import load from the active dataset.</p>
             </div>
             <div className="rounded-lg bg-primary-fixed px-3 py-2 text-right">
               <p className="text-[10px] font-black uppercase tracking-widest text-primary">Peak load</p>
@@ -89,7 +89,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
                 <YAxis hide />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
                 <ReferenceLine x={maxPoint.time} stroke="#00488d" strokeDasharray="4 4" />
-                <Area type="monotone" dataKey="load" stroke="#1b6d24" strokeWidth={3} fill="#1b6d24" fillOpacity={0.08} name="Forecast load" />
+                <Area type="monotone" dataKey="load" stroke="#1b6d24" strokeWidth={3} fill="#1b6d24" fillOpacity={0.08} name="Historical import" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

@@ -4,9 +4,13 @@ export type ForecastChartPoint = {
   rawTime: string;
   time: string;
   forecast: number;
+  gridImport: number;
+  grossLoad: number;
   overlayScore: number;
   overlayPoint: number | null;
 };
+
+export type ForecastChartBasis = 'grid_import' | 'gross_load';
 
 export type SiteLoadChartPoint = {
   rawTime: string;
@@ -26,6 +30,10 @@ export type PeakTimelineItem = {
 export function forecastWindowPoints(analysis: AnalysisResult | null): ForecastPoint[] {
   const points = analysis?.forecast.points ?? [];
   return points.length > 0 ? points : analysis?.forecast.preview ?? [];
+}
+
+export function selectForecastWindowPoints(analysis: AnalysisResult | null, intervals: number): ForecastPoint[] {
+  return forecastWindowPoints(analysis).slice(0, intervals);
 }
 
 export function forecastLoad(point: ForecastPoint): number {
@@ -54,17 +62,36 @@ export function selectForecastPeakPoint(analysis: AnalysisResult): ForecastPoint
   }, null);
 }
 
-export function buildForecastChartPoints(analysis: AnalysisResult | null, maxPoints = 288): ForecastChartPoint[] {
+export function forecastGrossLoad(point: ForecastPoint): number {
+  return Number(point.forecast_gross_load_kw ?? forecastLoad(point));
+}
+
+export function buildForecastChartPoints(
+  analysis: AnalysisResult | null,
+  maxPoints = 288,
+  basis: ForecastChartBasis = 'grid_import',
+): ForecastChartPoint[] {
   return downsampleForecastPoints(forecastWindowPoints(analysis), maxPoints).map(point => ({
     rawTime: point.interval_end,
     time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    forecast: forecastLoad(point),
+    forecast: basis === 'gross_load' ? forecastGrossLoad(point) : forecastLoad(point),
+    gridImport: forecastLoad(point),
+    grossLoad: forecastGrossLoad(point),
     overlayScore: Number(point.peak_risk_overlay_score ?? 0),
-    overlayPoint: point.is_peak_risk_overlay ? forecastLoad(point) : null,
+    overlayPoint: point.is_peak_risk_overlay ? (basis === 'gross_load' ? forecastGrossLoad(point) : forecastLoad(point)) : null,
   }));
 }
 
 export function buildSiteLoadChartPoints(analysis: AnalysisResult | null, maxPoints = 240): SiteLoadChartPoint[] {
+  const history = analysis?.load_history ?? [];
+  if (history.length > 0) {
+    const stride = history.length <= maxPoints ? 1 : Math.ceil(history.length / maxPoints);
+    return history.filter((_, index) => index % stride === 0 || index === history.length - 1).map(point => ({
+      rawTime: point.interval_end,
+      time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      load: Number(point.kw_import),
+    }));
+  }
   return downsampleForecastPoints(forecastWindowPoints(analysis), maxPoints).map(point => ({
     rawTime: point.interval_end,
     time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),

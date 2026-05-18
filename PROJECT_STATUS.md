@@ -70,7 +70,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Added backend-only `forecast_full_ml_planning_profile`, a LightGBM full planning candidate that changes p50 and predicts p90/p95 risk paths while keeping all model details out of the UI.
 - Added `forecast_gated_ml_planning_profile` as a backend experiment, then restored FastAPI bundled/upload analysis to the stable monthly planner after the score movement proved too small for the runtime cost.
 - Added backend-only `forecast_monthly_md_corrected_profile`, a LightGBM monthly-MD correction candidate that directly predicts next-window MD ratios and localizes p50/p90/p95 corrections to peak-risk windows.
-- Added backend-only `forecast_md_ensemble_profile`, a separated-head LightGBM candidate that uses tuned monthly-MD correction for p50 and the ML MD-risk model for p90/p95 envelopes.
+- Added `forecast_md_ensemble_profile`, a separated-head LightGBM model that uses tuned monthly-MD correction for p50 and the ML MD-risk model for p90/p95 envelopes; it is now promoted into the FastAPI analysis path with stable-planner fallback.
 
 ## In Progress
 - Peak-priority notebook model enhancement was implemented and benchmarked in this thread; the 2026-05-04 refinement rerun keeps `current_20pct` as the leading alert policy for metric review.
@@ -90,7 +90,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Full ML planning candidate validation is in progress as a backend-only experiment. The first bundled 30-day holdout improves p90 MD absolute error versus the statistical planner, but worsens RMSE/WAPE and p50 MD error versus both the statistical planner and the current hybrid ML MD-risk candidate.
 - The gated ML planning candidate is not accepted as the main API model. It keeps p50 MD error unchanged and only slightly improves RMSE/WAPE, so the runtime cost is not justified.
 - The monthly MD correction candidate is the first backend experiment to materially improve p50 MD absolute error. With the balanced default policy, bundled 30-day holdout improves p50 MD error from `259.12` kW to `224.66` kW, but RMSE/WAPE worsen from `209.45` kW / `36.10%` to `210.22` kW / `36.29%`, so it remains backend-only rather than production.
-- The separated-head MD ensemble candidate is the best combined backend score so far for MD planning: bundled 30-day holdout scores are RMSE `210.04` kW, WAPE `36.25%`, p50 MD error `231.56` kW, p90 MD error `58.93` kW, and p95 MD error `52.58` kW. It preserves the ML-risk p90/p95 gains and improves p50 versus the stable planner, but still slightly worsens RMSE/WAPE, so it remains backend-only until promotion is explicitly accepted.
+- The separated-head MD ensemble is promoted as the preferred app forecast after user acceptance of the small RMSE/WAPE tradeoff. Bundled 30-day holdout scores were RMSE `210.04` kW, WAPE `36.25%`, p50 MD error `231.56` kW, p90 MD error `58.93` kW, and p95 MD error `52.58` kW. It preserves the ML-risk p90/p95 gains and improves p50 versus the stable planner, while FastAPI falls back to the stable planner if the model cannot run.
 
 ## Next Actions
 - Review the fresh notebook metric score before deciding whether and how to promote the `enhanced_peak_priority` peak-alert overlay into the production app forecast path.
@@ -106,8 +106,8 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Expand validation and forecasting coverage with additional edge-case tests.
 - Do not promote `forecast_full_ml_planning_profile` unless the next iteration fixes p50/RMSE regression while retaining the p90 MD improvement.
 - Do not promote `forecast_monthly_md_corrected_profile` yet; continue tuning it only if the next step can preserve the p50 MD gain while bringing RMSE/WAPE back near the stable planner.
-- Treat `forecast_md_ensemble_profile` as the leading backend ML candidate for the next review, but do not switch FastAPI to it until the team accepts the small RMSE/WAPE tradeoff or a follow-up tuning pass removes it.
-- Before reconsidering ML promotion, require material metric improvement plus acceptable synchronous API runtime, or move heavy model diagnostics behind a separate backend-only endpoint.
+- Monitor synchronous API runtime now that `forecast_md_ensemble_profile` is promoted, and keep the stable planner fallback active for short-history or failed model-training cases.
+- Future ML promotions beyond the MD ensemble still require material metric improvement plus acceptable synchronous API runtime, or should move heavy diagnostics behind a separate backend-only endpoint.
 
 ## Current Decisions
 - Primary audience: future agents and teammates, with judge readability as a secondary benefit.
@@ -118,7 +118,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - The app should use pooled multi-site forecasting with site-local calibration.
 - The app should use recent-pattern monthly simulation for 1-3 month MD planning and avoid recursive 1440-4320 interval Ridge forecasts.
 - Monthly planning should present p50 expected demand, p90 MD-risk demand, and p95 stress demand so judges can see both expected and conservative planning cases.
-- The production app should be described as hybrid monthly planning: explainable statistical recent-pattern simulation plus trained historical MD-risk calibration when sufficient history exists.
+- The production app should be described as promoted hybrid monthly planning: separated-head MD ensemble first, explainable recent-pattern simulation as the fallback and baseline.
 - 7-day and 14-day rolling stress-window scores are diagnostic evidence only; official MD billing evaluation remains based on 30-day planning periods.
 - p90 optimization should be treated as balanced planning, while p95 optimization should be treated as conservative peak-protection planning.
 - Adaptive p90 calibration should be used to select balanced-risk planner settings from existing data, not as proof of performance on unseen external datasets.
@@ -158,6 +158,11 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Vite production build currently warns that the generated JavaScript bundle is larger than 500 kB; route-level code splitting is a future frontend performance task.
 
 ## Recent Changes
+- 2026-05-19: Promoted `forecast_md_ensemble_profile` into the FastAPI analysis path. Bundled analyses now train with other bundled workbooks as reference frames when possible, return `planning_method` as `md_ensemble_gradient_boosting`, and fall back to `forecast_monthly_planning_profile` if the ensemble cannot run.
+- 2026-05-18: Added gross-load forecasting support for solar sites while preserving grid-import MD/billing semantics. Site 1 and Site 4 now resolve to the competition-provided `944.880 kWp` installed PV fallback, and the Forecast & Risk chart can toggle between Grid import and Gross load.
+- 2026-05-18: Fixed Forecast & Risk sub-window selection so 12h/24h/48h views start from the first future forecast interval, matching the monthly planning horizon start instead of showing the final hours of the month.
+- 2026-05-18: Split chart data sources so Site Profile uses historical `load_history` from the dataset and Forecast & Risk uses future forecast points for predicted load and peak-risk windows.
+- 2026-05-18: Fixed the React Forecast & Risk page render path so its Peak Risk Timeline uses the shared timeline items instead of an undefined loop variable, preventing the page from crashing when opened.
 - 2026-05-07: Added `docs/mentoring_session_prep.md` with mentoring questions, a current architecture diagram, and high-impact decision prompts based on the source-of-truth docs.
 - 2026-05-09: Implemented monthly MD planning in the production app: user-selectable 1/2/3 month windows, recent weekday/weekend pattern simulation, MD-risk envelopes, interval-energy to kW normalization, 30-day MD billing periods, and a clear-sky sine solar profile.
 - 2026-05-10: Added probabilistic monthly planning outputs and monthly MD backtesting. The app forecast view charts p50/calibrated-p90/calibrated-p95 profiles and reports p50/p90/p95 monthly MD error plus p90/p95 coverage when enough history exists.

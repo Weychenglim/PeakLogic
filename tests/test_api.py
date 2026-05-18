@@ -60,6 +60,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(payload["metadata"]["source_file"], sites[0]["source_file"])
         self.assertGreater(payload["validation"]["row_count"], 0)
         self.assertGreater(payload["profile"]["peak_kw_import"], 0)
+        self.assertGreater(len(payload["load_history"]), 0)
+        self.assertIn("kw_import", payload["load_history"][0])
         self.assertGreater(len(payload["forecast"]["points"]), 0)
         self.assertGreater(len(payload["optimization"]["scenarios"]), 0)
         self.assertIn("executive_summary", payload)
@@ -75,7 +77,48 @@ class ApiTests(unittest.TestCase):
         first_point = payload["forecast"]["points"][0]
         self.assertIn("peak_risk_overlay_score", first_point)
         self.assertIn("is_peak_risk_overlay", first_point)
-        self.assertEqual(first_point["planning_method"], "recent_pattern_simulation")
+        self.assertIn("forecast_gross_load_kw", first_point)
+        self.assertIn("estimated_existing_solar_kw", first_point)
+        self.assertIn("forecast_basis", first_point)
+        self.assertEqual(first_point["planning_method"], "md_ensemble_gradient_boosting")
+
+    def test_bundled_analysis_uses_md_ensemble_forecast_by_default(self) -> None:
+        response = self.client.post(
+            "/api/analyze/bundled",
+            json={
+                "source_file": "2. Load Profile (No Solar) E.xlsx",
+                "months": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["forecast"]["points"][0]["planning_method"],
+            "md_ensemble_gradient_boosting",
+        )
+
+    def test_bundled_site_four_uses_site_one_solar_capacity_fallback(self) -> None:
+        response = self.client.post(
+            "/api/analyze/bundled",
+            json={
+                "source_file": "4. Load Profile (With Solar) Mi2.xlsx",
+                "months": 1,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertAlmostEqual(payload["assumptions"]["existing_pv_kwp"], 944.880)
+        daylight_points = [
+            point
+            for point in payload["forecast"]["preview"]
+            if point["estimated_existing_solar_kw"] > 0
+        ]
+        self.assertGreater(len(daylight_points), 0)
+        self.assertTrue(
+            all(point["forecast_gross_load_kw"] >= point["forecast_kw_import"] for point in daylight_points)
+        )
 
     def test_upload_analysis_accepts_workbook_file(self) -> None:
         workbook = Path("2. Load Profile (No Solar) E.xlsx")

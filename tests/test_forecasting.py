@@ -121,6 +121,71 @@ class ForecastingTests(unittest.TestCase):
             check_names=False,
         )
 
+    def test_resolve_existing_pv_kwp_uses_site_specific_fallbacks(self) -> None:
+        from trex_energy.forecasting import resolve_existing_pv_kwp
+
+        self.assertAlmostEqual(
+            resolve_existing_pv_kwp(
+                site_id="1. Load Profile (With Solar Installed) SoL",
+                source_file="1. Load Profile (With Solar Installed) SoL.xlsx",
+                has_solar=True,
+                user_existing_pv_kwp=None,
+                metadata_existing_pv_kwp=None,
+            ),
+            944.880,
+        )
+        self.assertAlmostEqual(
+            resolve_existing_pv_kwp(
+                site_id="4. Load Profile (With Solar) Mi2",
+                source_file="4. Load Profile (With Solar) Mi2.xlsx",
+                has_solar=True,
+                user_existing_pv_kwp=None,
+                metadata_existing_pv_kwp=None,
+            ),
+            944.880,
+        )
+        self.assertEqual(
+            resolve_existing_pv_kwp(
+                site_id="uploaded_solar_site",
+                source_file="new_upload.xlsx",
+                has_solar=True,
+                user_existing_pv_kwp=None,
+                metadata_existing_pv_kwp=None,
+            ),
+            0.0,
+        )
+        self.assertEqual(
+            resolve_existing_pv_kwp(
+                site_id="uploaded_solar_site",
+                source_file="new_upload.xlsx",
+                has_solar=True,
+                user_existing_pv_kwp=120.0,
+                metadata_existing_pv_kwp=None,
+            ),
+            120.0,
+        )
+
+    def test_monthly_planning_forecast_adds_gross_load_for_solar_sites(self) -> None:
+        from trex_energy.forecasting import forecast_monthly_planning_profile
+
+        frame = self._synthetic_planning_frame(days=35)
+        frame["has_solar"] = True
+        frame["existing_pv_kwp"] = 100.0
+        frame["kw_import"] = 80.0
+
+        forecast = forecast_monthly_planning_profile(frame, months=1)
+        noon = forecast[forecast["interval_end"].dt.hour.eq(12)].iloc[0]
+        midnight = forecast[forecast["interval_end"].dt.hour.eq(0)].iloc[0]
+
+        self.assertIn("forecast_gross_load_kw", forecast.columns)
+        self.assertIn("estimated_existing_solar_kw", forecast.columns)
+        self.assertIn("forecast_basis", forecast.columns)
+        self.assertAlmostEqual(float(noon["estimated_existing_solar_kw"]), 100.0)
+        self.assertGreater(float(noon["forecast_gross_load_kw"]), float(noon["forecast_kw_import"]))
+        self.assertAlmostEqual(float(midnight["estimated_existing_solar_kw"]), 0.0)
+        self.assertAlmostEqual(float(midnight["forecast_gross_load_kw"]), float(midnight["forecast_kw_import"]))
+        self.assertEqual(set(forecast["forecast_basis"].unique()), {"gross_load_with_existing_solar"})
+
     def test_monthly_planning_adds_separate_peak_risk_overlay_without_changing_p50(self) -> None:
         from trex_energy.forecasting import forecast_monthly_planning_profile
 

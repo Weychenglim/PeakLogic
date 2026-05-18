@@ -72,8 +72,8 @@ The app must:
 - allow backend-only ML MD-risk candidates to adjust p90/p95 risk envelopes while preserving the user-facing p50 forecast path
 - allow backend-only full ML planning candidates to predict p50, p90, and p95 for model development, but require explicit validation and no silent fallback before any production promotion
 - allow backend-only monthly MD correction candidates to directly predict next-window maximum-demand ratios and localize p50 corrections to peak-risk windows, but require material p50 MD improvement without unacceptable RMSE/WAPE regression before production promotion
-- allow backend-only separated-head MD ensemble candidates to combine corrected p50 monthly MD forecasts with the strongest validated p90/p95 risk envelopes, but keep them internal until they improve the accepted score without unacceptable runtime or interval-error regression
-- keep the main FastAPI forecast path on the stable monthly planner until an ML candidate shows material score improvement and acceptable local runtime
+- use the separated-head MD ensemble as the main FastAPI forecast path, combining corrected p50 monthly MD forecasts with the strongest validated p90/p95 risk envelopes
+- keep a stable recent-pattern monthly-planner fallback when the promoted ML ensemble cannot run because of short history, dependency, or runtime/model-training failures
 - expose a separate peak-risk overlay score and high MD-risk window marker in the app without changing `forecast_kw_import`, so the UI can tell a recall-oriented peak-alert story while keeping the value forecast stable
 - guard late-night non-solar MD-risk corrections to recent local night-peak shapes and apply them only to p90/p95 risk envelopes, not the p50 forecast path
 - keep canonical `kw_import` and `kw_export` as power in kW; if source active import/export values are interval energy in kWh, convert to kW using the interval duration
@@ -100,6 +100,12 @@ Current implementation note:
 - The Optimization tab now treats assumptions as editable decision inputs rather than locked display values.
 - The backend now owns the structured Optimization recommendation explanation and sensitivity payload consumed by the React UI.
 - The Site Profile dashboard now includes peak-risk timeline and solar-impact cards based on existing forecast and optimized schedule payloads.
+- The Forecast & Risk dashboard must open from the sidebar after an analysis is available and render its demand chart, peak window, recommendation cards, and peak-risk timeline without a route reset or runtime crash.
+- Solar-site forecasting must expose both gross facility load and utility-facing grid import. Gross load reconstructs demand by adding estimated existing solar output to `kw_import`, while MD, peak-risk, tariff, billing, savings, and executive-summary outputs continue to use grid-import kW.
+- Bundled Site 1 and bundled Site 4 use `944.880 kWp` as installed existing PV when no user override is supplied. Future uploaded solar datasets with missing PV capacity default to `0 kWp` unless the user enters a value.
+- Site Profile charts should show historical dataset load, while Forecast & Risk charts should show future forecast points and predicted peak-risk windows.
+- Forecast & Risk sub-window controls such as 12h, 24h, and 48h should preview from the first future forecast interval, matching the start of the active monthly planning horizon rather than jumping to the end of the month.
+- FastAPI bundled and upload analyses should try the promoted `md_ensemble_gradient_boosting` forecast first. Bundled analyses may use the other bundled workbooks as reference frames; all analyses must fall back to the stable recent-pattern planner when the ensemble is unavailable.
 
 ## Non-Functional Requirements
 The app should be:

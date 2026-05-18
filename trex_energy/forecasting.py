@@ -32,6 +32,12 @@ ROLL_WINDOWS = [4, 24, 48]
 PLANNING_INTERVALS_PER_MONTH = 30 * 48
 LONG_HORIZON_MIN_HISTORY = 21 * 48
 LONG_HORIZON_TRAINING_HORIZON = 30 * 48
+KNOWN_BUNDLED_SOLAR_KWP = {
+    "1. Load Profile (With Solar Installed) SoL": 944.880,
+    "1. Load Profile (With Solar Installed) SoL.xlsx": 944.880,
+    "4. Load Profile (With Solar) Mi2": 944.880,
+    "4. Load Profile (With Solar) Mi2.xlsx": 944.880,
+}
 
 
 @dataclass(frozen=True)
@@ -106,6 +112,30 @@ class TrainedRidge:
     alpha: float
     alpha_scores: pd.DataFrame
     normalize_targets: bool
+
+
+def clear_sky_sine_solar_factor(timestamp: pd.Timestamp) -> float:
+    hour = timestamp.hour + timestamp.minute / 60.0
+    if hour <= 6.0 or hour >= 18.0:
+        return 0.0
+    return float(np.sin(np.pi * (hour - 6.0) / 12.0))
+
+
+def resolve_existing_pv_kwp(
+    *,
+    site_id: str,
+    source_file: str,
+    has_solar: bool,
+    user_existing_pv_kwp: float | None = None,
+    metadata_existing_pv_kwp: float | None = None,
+) -> float:
+    if user_existing_pv_kwp is not None:
+        return max(0.0, float(user_existing_pv_kwp))
+    if metadata_existing_pv_kwp is not None:
+        return max(0.0, float(metadata_existing_pv_kwp))
+    if not has_solar:
+        return 0.0
+    return float(KNOWN_BUNDLED_SOLAR_KWP.get(source_file, KNOWN_BUNDLED_SOLAR_KWP.get(site_id, 0.0)))
 
 
 def _add_peak_flags(forecast: pd.DataFrame) -> pd.DataFrame:
@@ -192,6 +222,7 @@ def forecast_monthly_planning_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     if months not in {1, 2, 3}:
         raise ValueError("months must be 1, 2, or 3")
@@ -199,14 +230,33 @@ def forecast_monthly_planning_profile(
         raise ValueError("Target frame is empty")
 
     ordered = target_frame.sort_values("interval_end").reset_index(drop=True).copy()
+    site_id = str(ordered["site_id"].iloc[0])
+    source_file = str(ordered["source_file"].iloc[0]) if "source_file" in ordered.columns else site_id
+    has_solar = bool(ordered["has_solar"].fillna(False).iloc[-1]) if "has_solar" in ordered.columns else False
+    metadata_pv_kwp = None
+    if "existing_pv_kwp" in ordered.columns:
+        pv_values = pd.to_numeric(ordered["existing_pv_kwp"], errors="coerce").dropna()
+        if not pv_values.empty:
+            metadata_pv_kwp = float(pv_values.iloc[-1])
+    resolved_existing_pv_kwp = resolve_existing_pv_kwp(
+        site_id=site_id,
+        source_file=source_file,
+        has_solar=has_solar,
+        user_existing_pv_kwp=existing_pv_kwp,
+        metadata_existing_pv_kwp=metadata_pv_kwp,
+    )
+    ordered["estimated_existing_solar_kw"] = ordered["interval_end"].map(
+        lambda ts: resolved_existing_pv_kwp * clear_sky_sine_solar_factor(pd.Timestamp(ts))
+    )
+    ordered["gross_load_kw"] = ordered["kw_import"].astype(float) + ordered["estimated_existing_solar_kw"].astype(float)
     recent_count = min(len(ordered), max(48, int(recent_days * 48)))
     recent = ordered.tail(recent_count).copy()
     recent["slot_index"] = recent["interval_end"].map(lambda ts: _slot_index(pd.Timestamp(ts)))
     recent["day_type"] = recent["interval_end"].dt.dayofweek.map(lambda day: "weekend" if day >= 5 else "weekday")
-    has_solar = bool(ordered["has_solar"].fillna(False).iloc[-1]) if "has_solar" in ordered.columns else False
+    forecast_basis = "gross_load_with_existing_solar" if resolved_existing_pv_kwp > 0 else "grid_import"
 
     grouped = (
-        recent.groupby(["day_type", "slot_index"], observed=True)["kw_import"]
+        recent.groupby(["day_type", "slot_index"], observed=True)["gross_load_kw"]
         .agg(
             p50_kw="median",
             p90_kw=lambda values: values.quantile(0.90),
@@ -226,7 +276,7 @@ def forecast_monthly_planning_profile(
     }
 
     slot_fallback = (
-        recent.groupby("slot_index", observed=True)["kw_import"]
+        recent.groupby("slot_index", observed=True)["gross_load_kw"]
         .agg(
             p50_kw="median",
             p90_kw=lambda values: values.quantile(0.90),
@@ -244,12 +294,11 @@ def forecast_monthly_planning_profile(
         )
         for row in slot_fallback.itertuples(index=False)
     }
-    global_p50 = float(recent["kw_import"].median())
-    global_p90 = float(recent["kw_import"].quantile(0.90))
-    global_p95 = float(recent["kw_import"].quantile(0.95))
-    global_envelope = float(recent["kw_import"].quantile(risk_quantile))
+    global_p50 = float(recent["gross_load_kw"].median())
+    global_p90 = float(recent["gross_load_kw"].quantile(0.90))
+    global_p95 = float(recent["gross_load_kw"].quantile(0.95))
+    global_envelope = float(recent["gross_load_kw"].quantile(risk_quantile))
 
-    site_id = str(ordered["site_id"].iloc[0])
     last_end = pd.Timestamp(ordered["interval_end"].iloc[-1])
     horizon = months * PLANNING_INTERVALS_PER_MONTH
     growth_multiplier = max(0.0, 1.0 + float(growth_rate_pct) / 100.0)
@@ -288,10 +337,15 @@ def forecast_monthly_planning_profile(
 
         hour = interval_end.hour + interval_end.minute / 60.0
         ev_adder = float(ev_load_kw) if ev_load_kw > 0 and _is_in_hour_window(hour, ev_start_hour, ev_end_hour) else 0.0
-        p50_forecast_kw = max(p50_kw * growth_multiplier + ev_adder, 0.0)
-        p90_md_risk_kw = max(p90_kw * growth_multiplier + ev_adder, p50_forecast_kw)
-        p95_stress_kw = max(p95_kw * growth_multiplier + ev_adder, p90_md_risk_kw)
-        risk_envelope_kw = max(envelope_kw * growth_multiplier + ev_adder, p90_md_risk_kw)
+        forecast_existing_solar_kw = resolved_existing_pv_kwp * clear_sky_sine_solar_factor(interval_end)
+        gross_p50_kw = max(p50_kw * growth_multiplier + ev_adder, 0.0)
+        gross_p90_kw = max(p90_kw * growth_multiplier + ev_adder, gross_p50_kw)
+        gross_p95_kw = max(p95_kw * growth_multiplier + ev_adder, gross_p90_kw)
+        gross_envelope_kw = max(envelope_kw * growth_multiplier + ev_adder, gross_p90_kw)
+        p50_forecast_kw = max(gross_p50_kw - forecast_existing_solar_kw, 0.0)
+        p90_md_risk_kw = max(gross_p90_kw - forecast_existing_solar_kw, p50_forecast_kw, 0.0)
+        p95_stress_kw = max(gross_p95_kw - forecast_existing_solar_kw, p90_md_risk_kw, 0.0)
+        risk_envelope_kw = max(gross_envelope_kw - forecast_existing_solar_kw, p90_md_risk_kw, 0.0)
         is_late_horizon = step > 7 * 48
         is_night_risk_window = hour >= 18 or hour < 6
         slot_is_recent_peak_shape = slot in peak_night_slots
@@ -311,6 +365,9 @@ def forecast_monthly_planning_profile(
                 "interval_start": interval_start,
                 "interval_end": interval_end,
                 "forecast_kw_import": p50_forecast_kw,
+                "forecast_gross_load_kw": gross_p50_kw,
+                "estimated_existing_solar_kw": forecast_existing_solar_kw,
+                "forecast_basis": forecast_basis,
                 "md_risk_envelope_kw": p90_md_risk_kw,
                 "p50_forecast_kw": p50_forecast_kw,
                 "p90_md_risk_kw": p90_md_risk_kw,
@@ -1653,6 +1710,7 @@ def forecast_monthly_md_corrected_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     if months not in {1, 2, 3}:
         raise ValueError("months must be 1, 2, or 3")
@@ -1679,6 +1737,7 @@ def forecast_monthly_md_corrected_profile(
         ev_load_kw=ev_load_kw,
         ev_start_hour=ev_start_hour,
         ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
     ).reset_index(drop=True)
     adjusted["ml_monthly_md_target_kw"] = 0.0
     adjusted["ml_monthly_md_correction_applied"] = False
@@ -2066,6 +2125,7 @@ def forecast_ml_md_risk_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     if months not in {1, 2, 3}:
         raise ValueError("months must be 1, 2, or 3")
@@ -2083,6 +2143,7 @@ def forecast_ml_md_risk_profile(
         ev_load_kw=ev_load_kw,
         ev_start_hour=ev_start_hour,
         ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
     ).reset_index(drop=True)
     training_frames = list(reference_frames or []) + [ordered]
     training_rows, feature_columns = _build_md_risk_training_rows(
@@ -2180,6 +2241,7 @@ def forecast_md_ensemble_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     ensemble_correction_policy = correction_policy or MonthlyMDCorrectionPolicy(p50_correction_strength=0.20)
     reference_frame_list = list(reference_frames or [])
@@ -2193,6 +2255,7 @@ def forecast_md_ensemble_profile(
         ev_load_kw=ev_load_kw,
         ev_start_hour=ev_start_hour,
         ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
     ).reset_index(drop=True)
     p50_forecast = forecast_monthly_md_corrected_profile(
         target_frame,
@@ -2204,6 +2267,7 @@ def forecast_md_ensemble_profile(
         ev_load_kw=ev_load_kw,
         ev_start_hour=ev_start_hour,
         ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
     ).reset_index(drop=True)
 
     adjusted = risk_forecast.copy()

@@ -34,10 +34,20 @@ export interface SiteProfileSummary {
   weekend_avg_kw_import: number;
 }
 
+export interface LoadHistoryPoint {
+  interval_start?: string;
+  interval_end: string;
+  kw_import: number;
+  kw_export?: number;
+}
+
 export interface ForecastPoint {
   interval_start: string;
   interval_end: string;
   forecast_kw_import: number;
+  forecast_gross_load_kw?: number;
+  estimated_existing_solar_kw?: number;
+  forecast_basis?: string;
   p50_forecast_kw?: number;
   calibrated_p90_md_risk_kw?: number;
   calibrated_p95_stress_kw?: number;
@@ -112,6 +122,7 @@ export interface AnalysisResult {
   assumptions: PlanningAssumptions;
   validation: ValidationSummary;
   profile: SiteProfileSummary;
+  load_history: LoadHistoryPoint[];
   normalized_preview: Record<string, unknown>[];
   forecast: {
     metrics: {

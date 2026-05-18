@@ -139,6 +139,44 @@ class OptimizationTests(unittest.TestCase):
         self.assertAlmostEqual(float(result.best_scenario["md_before"]), 600.0)
         self.assertAlmostEqual(float(result.best_scenario["bill_before_rm"]), 10000.0)
 
+    def test_optimization_keeps_grid_import_billing_when_gross_forecast_exists(self) -> None:
+        from trex_energy.optimization import OptimizationConfig, evaluate_site_scenarios
+        from trex_energy.tariff import TariffConfig
+
+        frame = pd.DataFrame(
+            {
+                "site_id": ["solar_site"] * 4,
+                "interval_start": pd.date_range("2025-01-01 11:00:00", periods=4, freq="30min"),
+                "interval_end": pd.date_range("2025-01-01 11:30:00", periods=4, freq="30min"),
+                "forecast_gross_load_kw": [200.0, 240.0, 240.0, 200.0],
+                "forecast_kw_import": [100.0, 140.0, 140.0, 100.0],
+                "estimated_existing_solar_kw": [100.0, 100.0, 100.0, 100.0],
+            }
+        )
+        config = OptimizationConfig(
+            flexible_load_fraction=0.0,
+            battery_kw_options=[0.0],
+            battery_kwh_options=[0.0],
+            solar_kwp_options=[0.0],
+            base_solar_kwp=0.0,
+            tariff=TariffConfig(
+                md_rate_rm_per_kw=10.0,
+                offpeak_energy_rate_rm_per_kwh=0.0,
+                peak_energy_rate_rm_per_kwh=0.0,
+            ),
+        )
+
+        result = evaluate_site_scenarios(frame, config)
+
+        self.assertAlmostEqual(float(result.best_scenario["md_before"]), 140.0)
+        self.assertTrue("gross_load_kw" in result.optimized_schedule.columns)
+        self.assertTrue("existing_solar_offset_kw" in result.optimized_schedule.columns)
+        pd.testing.assert_series_equal(
+            result.optimized_schedule["baseline_kw_import"],
+            frame["forecast_kw_import"],
+            check_names=False,
+        )
+
     def test_optimization_can_select_p90_or_p95_md_risk_basis(self) -> None:
         from trex_energy.optimization import OptimizationConfig, evaluate_site_scenarios
         from trex_energy.tariff import TariffConfig

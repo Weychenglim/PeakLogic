@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, BatteryCharging, Clock, Gauge, Radar, ShieldCheck, Zap } from 'lucide-react';
+import { AlertCircle, BatteryCharging, Clock, Gauge, ShieldCheck, Zap } from 'lucide-react';
 import { Area, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult } from '../lib/api';
@@ -7,15 +7,19 @@ import {
   buildForecastChartPoints,
   buildPeakTimelineItems,
   countPeakRiskAlerts,
+  forecastGrossLoad,
   forecastLoad,
   forecastWindowLabel,
+  selectForecastWindowPoints,
   selectForecastPeakPoint,
+  type ForecastChartBasis,
 } from './forecastWindow';
 
 export {
   buildForecastChartPoints,
   buildPeakTimelineItems as buildForecastPeakTimelineItems,
   countPeakRiskAlerts,
+  selectForecastWindowPoints,
   selectForecastPeakPoint,
 } from './forecastWindow';
 
@@ -26,14 +30,23 @@ interface ForecastRiskProps {
   error: string | null;
 }
 
-function compactForecast(points: AnalysisResult['forecast']['points'], stride: number) {
-  return points.filter((_, index) => index % stride === 0).map(point => ({
-    rawTime: point.interval_end,
-    time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    forecast: Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import),
-    overlayScore: Number(point.peak_risk_overlay_score ?? 0),
-    overlayPoint: point.is_peak_risk_overlay ? Number(point.calibrated_p95_stress_kw ?? point.md_risk_envelope_kw ?? point.forecast_kw_import) : null,
-  }));
+function compactForecastForBasis(
+  points: AnalysisResult['forecast']['points'],
+  stride: number,
+  chartBasis: ForecastChartBasis,
+) {
+  return points.filter((_, index) => index % stride === 0).map(point => {
+    const gridImport = forecastLoad(point);
+    const grossLoad = forecastGrossLoad(point);
+    const forecast = chartBasis === 'gross_load' ? grossLoad : gridImport;
+    return {
+      rawTime: point.interval_end,
+      time: new Date(point.interval_end).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      forecast,
+      overlayScore: Number(point.peak_risk_overlay_score ?? 0),
+      overlayPoint: point.is_peak_risk_overlay ? forecast : null,
+    };
+  });
 }
 
 function formatTimeWindow(startIso: string, hours = 2) {
@@ -57,11 +70,11 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
     { id: '1m', label: '1 month', intervals: 30 * 48 },
   ];
   const [windowSize, setWindowSize] = useState('24h');
+  const [chartBasis, setChartBasis] = useState<ForecastChartBasis>('grid_import');
   const selectedWindow = windowOptions.find(option => option.id === windowSize) ?? windowOptions[1];
-  const forecastPoints = analysis.forecast.points.length > 0 ? analysis.forecast.points : analysis.forecast.preview;
-  const windowPoints = forecastPoints.slice(-selectedWindow.intervals);
+  const windowPoints = selectForecastWindowPoints(analysis, selectedWindow.intervals);
   const stride = Math.max(1, Math.floor(windowPoints.length / 96));
-  const data = compactForecast(windowPoints, stride);
+  const data = compactForecastForBasis(windowPoints, stride, chartBasis);
   const overlayEvents = windowPoints.filter(point => point.is_peak_risk_overlay).length;
   const peakPoint = [...windowPoints].sort((a, b) => {
     const aLoad = Number(a.calibrated_p95_stress_kw ?? a.md_risk_envelope_kw ?? a.forecast_kw_import);
@@ -79,8 +92,8 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h3 className="text-3xl font-extrabold tracking-tight text-on-surface">Grid Load Forecast</h3>
-          <p className="text-on-surface-variant mt-1">{selectedWindow.label} peak-risk view for {analysis.metadata.site_id}</p>
+          <h3 className="text-3xl font-extrabold tracking-tight text-on-surface">Future Load Forecast</h3>
+          <p className="text-on-surface-variant mt-1">{selectedWindow.label} predicted peak-risk view for {analysis.metadata.site_id}</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <label className="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
@@ -95,6 +108,25 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
               ))}
             </select>
           </label>
+          <div className="flex rounded-full border border-outline-variant/10 bg-surface-container-low p-1 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+            {[
+              { id: 'grid_import' as const, label: 'Grid import' },
+              { id: 'gross_load' as const, label: 'Gross load' },
+            ].map(option => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setChartBasis(option.id)}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  chartBasis === option.id
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="px-4 py-2 bg-surface-container-low rounded-xl flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-secondary" />
             <span className="text-sm font-medium">Site live</span>
@@ -110,8 +142,8 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
         <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 shadow-sm">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h4 className="text-lg font-bold">Demand Forecast</h4>
-              <p className="text-xs text-on-surface-variant font-medium">Predicted load with peak-risk markers.</p>
+              <h4 className="text-lg font-bold">Predicted Demand</h4>
+              <p className="text-xs text-on-surface-variant font-medium">Future forecast points with peak-risk markers.</p>
             </div>
           </div>
 
@@ -174,7 +206,7 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
             <span className="rounded-full bg-primary-fixed px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">{overlayEvents} alerts</span>
           </div>
           <div className="grid grid-cols-6 gap-1">
-            {windowPoints.slice(0, 36).map(point => (
+            {timelineItems.slice(0, 36).map(item => (
               <div
                 key={item.key}
                 className={`h-8 rounded-md ${item.level === 'critical' ? 'bg-tertiary-fixed border border-tertiary/20' : item.level === 'risk' ? 'bg-primary-fixed' : 'bg-surface-container-low'}`}

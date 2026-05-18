@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Lock, Mail, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -9,7 +9,7 @@ export function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setMessage(null);

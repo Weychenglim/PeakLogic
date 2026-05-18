@@ -270,7 +270,6 @@ export function DataUpload({
         </div>
         <div className="p-4 bg-surface-container-low border-t border-outline-variant/10 flex items-center justify-center gap-2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
           <FileSpreadsheet size={14} />
-          Local demo mode. Supabase persistence is deferred.
         </div>
       </section>
     </div>

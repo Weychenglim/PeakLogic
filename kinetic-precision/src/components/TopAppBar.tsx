@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, Bell, User, MapPin, ChevronDown, Check } from 'lucide-react';
+import { LogOut, Search, Bell, User, MapPin, ChevronDown, Check } from 'lucide-react';
 import type { BundledSite } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -9,17 +9,38 @@ interface TopAppBarProps {
   selectedSourceFile: string;
   loading: boolean;
   onSiteChange: (sourceFile: string) => void;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  userAvatarUrl?: string | null;
+  onSignOut: () => void;
 }
 
-export function TopAppBar({ title, sites, selectedSourceFile, loading, onSiteChange }: TopAppBarProps) {
+export function TopAppBar({
+  title,
+  sites,
+  selectedSourceFile,
+  loading,
+  onSiteChange,
+  userName,
+  userEmail,
+  userRole,
+  userAvatarUrl,
+  onSignOut,
+}: TopAppBarProps) {
   const [open, setOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
   const currentSite = sites.find(s => s.source_file === selectedSourceFile) || sites[0];
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
+      }
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setUserMenuOpen(false);
       }
     }
     document.addEventListener('pointerdown', handlePointerDown);
@@ -126,9 +147,60 @@ export function TopAppBar({ title, sites, selectedSourceFile, loading, onSiteCha
             <Bell size={20} />
             <div className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full border-2 border-surface" />
           </button>
-          <button className="p-1 hover:opacity-80 transition-opacity">
-            <User size={20} />
-          </button>
+          <div className="relative" ref={userMenuRef}>
+            <button
+              className="p-1 hover:opacity-80 transition-opacity"
+              onClick={() => setUserMenuOpen(value => !value)}
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen}
+            >
+              {userAvatarUrl ? (
+                <img
+                  src={userAvatarUrl}
+                  alt={userName}
+                  className="h-8 w-8 rounded-full border border-outline-variant/30 object-cover"
+                />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-low text-on-surface-variant">
+                  <User size={16} />
+                </div>
+              )}
+            </button>
+            {userMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container-lowest shadow-2xl"
+              >
+                <div className="flex items-center gap-3 border-b border-outline-variant/10 px-4 py-4">
+                  {userAvatarUrl ? (
+                    <img
+                      src={userAvatarUrl}
+                      alt={userName}
+                      className="h-10 w-10 rounded-full border border-outline-variant/30 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-low text-on-surface-variant">
+                      <User size={18} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-on-surface">{userName}</p>
+                    <p className="truncate text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{userRole}</p>
+                    <p className="truncate text-[11px] font-semibold text-on-surface-variant">{userEmail}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-low"
+                >
+                  <LogOut size={14} />
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

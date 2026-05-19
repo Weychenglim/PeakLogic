@@ -83,7 +83,7 @@ The app must:
 - explain Optimization results with judge-facing "what changed", "why this scenario", and "savings sensitivity" copy without adding site-by-site or model-comparison views
 - return backend-generated Optimization explanation, planning-basis labels, confidence flags, and active-analysis +/-10% tariff/CAPEX sensitivity rows for the current workbook or upload
 - keep Site Profile focused on historical load shape, observed MD, solar metadata, interval counts, and data-quality status
-- show top observed historical peak events and load-pattern summaries in Site Profile, including weekday versus weekend, daytime versus night, and peak-to-average ratio
+- show top observed historical peak events and a unified Site Operating Pattern summary in Site Profile, combining weekday versus weekend, daytime versus night, peak-to-average ratio, interval count, solar capacity, and data-quality gaps
 - keep future peak-risk windows and operator response guidance in Forecast & Risk only
 - identify likely peak demand periods and MD-risk intervals
 - simulate flexible load shifting using an aggregate flexible-load-block model
@@ -101,7 +101,7 @@ Current implementation note:
 - The React/FastAPI path now accepts editable tariff, CAPEX, and planning-month assumptions, and the forecast payload includes a separate peak-risk overlay score for high MD-risk chart markers.
 - The Optimization tab now treats assumptions as editable decision inputs rather than locked display values.
 - The backend now owns the structured Optimization recommendation explanation and sensitivity payload consumed by the React UI.
-- The Site Profile dashboard now emphasizes historical site diagnostics: observed maximum demand, top observed peak timestamps, load-pattern summaries, solar metadata, interval count, and data-quality gaps.
+- The Site Profile dashboard now emphasizes historical site diagnostics: observed maximum demand, top observed peak timestamps, and a unified operating-pattern section that pairs three load-pattern summaries with compact site facts.
 - The Forecast & Risk dashboard must open from the sidebar after an analysis is available and render its demand chart, peak window, recommendation cards, and peak-risk timeline without a route reset or runtime crash.
 - Solar-site forecasting must expose both gross facility load and utility-facing grid import. Gross load reconstructs demand by adding estimated existing solar output to `kw_import`, while MD, peak-risk, tariff, billing, savings, and executive-summary outputs continue to use grid-import kW.
 - Bundled Site 1 and bundled Site 4 use `944.880 kWp` as installed existing PV when no user override is supplied. Future uploaded solar datasets with missing PV capacity default to `0 kWp` unless the user enters a value.

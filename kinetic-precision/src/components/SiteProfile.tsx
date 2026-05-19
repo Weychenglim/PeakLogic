@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, BarChart3, CalendarClock, Factory, Gauge, Moon, Sun, Zap } from 'lucide-react';
+import { Activity, CalendarClock, Factory, Gauge, Moon, Sun, Zap } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult } from '../lib/api';
@@ -29,6 +29,11 @@ export type LoadPatternSummary = {
   daytimeAvg: number;
   nightAvg: number;
   peakToAverageRatio: number;
+};
+
+export type SiteFactItem = {
+  label: string;
+  value: string;
 };
 
 export function buildObservedPeakEvents(analysis: AnalysisResult, limit = 3): ObservedPeakEvent[] {
@@ -78,6 +83,25 @@ export function buildLoadPatternSummary(analysis: AnalysisResult): LoadPatternSu
   };
 }
 
+export function buildSiteFactItems(analysis: AnalysisResult): SiteFactItem[] {
+  return [
+    {
+      label: 'Intervals',
+      value: analysis.profile?.rows.toLocaleString() ?? '0',
+    },
+    {
+      label: 'Solar capacity',
+      value: analysis.metadata?.has_solar
+        ? `${analysis.metadata.existing_pv_kwp?.toFixed(0) ?? 'Known'} kWp`
+        : 'No solar',
+    },
+    {
+      label: 'Data quality',
+      value: `${analysis.validation?.gap_count ?? 0} gaps`,
+    },
+  ];
+}
+
 export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfileProps) {
   const profile = analysis?.profile;
   const metadata = analysis?.metadata;
@@ -92,6 +116,7 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
 
   const observedPeaks = buildObservedPeakEvents(analysis);
   const loadPattern = buildLoadPatternSummary(analysis);
+  const siteFacts = buildSiteFactItems(analysis);
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
@@ -169,10 +194,10 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
 
       <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
         <div className="mb-5">
-          <h3 className="font-headline text-lg font-black text-on-surface">Load Pattern Summary</h3>
-          <p className="text-xs font-medium text-on-surface-variant">Historical operating shape from the active dataset.</p>
+          <h3 className="font-headline text-lg font-black text-on-surface">Site Operating Pattern</h3>
+          <p className="text-xs font-medium text-on-surface-variant">Historical shape and compact site facts from the active dataset.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_auto]">
           <div className="rounded-lg bg-surface-container-low p-4">
             <div className="mb-3 flex items-center gap-2 text-primary">
               <Factory size={16} />
@@ -197,25 +222,16 @@ export function SiteProfile({ analysis, loading, loadingStep, error }: SiteProfi
             <p className="font-headline text-2xl font-black">{loadPattern.peakToAverageRatio.toFixed(1)}x</p>
             <p className="text-xs font-bold text-on-surface-variant">Observed MD compared with average import</p>
           </div>
+          <div className="grid gap-2 rounded-lg bg-surface-container-low p-4 lg:min-w-44">
+            {siteFacts.map(fact => (
+              <div key={fact.label} className="border-b border-outline-variant/10 pb-2 last:border-b-0 last:pb-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{fact.label}</p>
+                <p className="mt-1 text-sm font-black text-on-surface">{fact.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-
-      <div className="grid grid-cols-2 gap-5 md:grid-cols-3">
-        {[
-          { label: 'Weekday Avg', value: `${profile?.weekday_avg_kw_import.toFixed(1)} kW`, icon: Factory },
-          { label: 'Weekend Avg', value: `${profile?.weekend_avg_kw_import.toFixed(1)} kW`, icon: Activity },
-          { label: 'Average Import', value: `${profile?.avg_kw_import.toFixed(1)} kW`, icon: Gauge },
-          { label: 'Intervals', value: profile?.rows.toLocaleString() ?? '0', icon: BarChart3 },
-          { label: 'Solar Capacity', value: metadata?.has_solar ? `${metadata.existing_pv_kwp?.toFixed(0) ?? 'Known'} kWp` : 'No solar', icon: Sun },
-          { label: 'Data Quality', value: `${analysis.validation.gap_count} gaps`, icon: AlertTriangle },
-        ].map(stat => (
-          <div key={stat.label} className="p-6 rounded-xl shadow-sm border border-outline-variant/5 bg-surface-container-low">
-            <stat.icon size={18} className="text-primary mb-4" />
-            <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-2 opacity-60">{stat.label}</p>
-            <p className="text-2xl font-black font-headline tracking-tight">{stat.value}</p>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

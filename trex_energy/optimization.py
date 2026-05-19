@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from itertools import product
-import math
 
 import pandas as pd
 
+from .forecasting import clear_sky_sine_solar_factor
 from .tariff import TariffConfig, calculate_bill_components
 
 
@@ -51,6 +51,15 @@ def _base_profile(frame: pd.DataFrame, config: OptimizationConfig) -> pd.DataFra
         working["baseline_kw_import"] = working["forecast_kw_import"].astype(float)
     else:
         working["baseline_kw_import"] = working["kw_import"].astype(float)
+    if "forecast_gross_load_kw" in working.columns:
+        working["gross_load_kw"] = working["forecast_gross_load_kw"].astype(float)
+    else:
+        working["gross_load_kw"] = working["baseline_kw_import"].astype(float)
+    if "estimated_existing_solar_kw" in working.columns:
+        working["existing_solar_offset_kw"] = working["estimated_existing_solar_kw"].astype(float).clip(lower=0.0)
+    else:
+        working["existing_solar_offset_kw"] = 0.0
+    working["optimization_load_kw"] = working["gross_load_kw"].astype(float)
     return working
 
 
@@ -62,20 +71,20 @@ def _apply_flexible_shift(profile: pd.DataFrame, config: OptimizationConfig) -> 
     shifted = profile.copy()
     shifted["flex_shift_out_kw"] = 0.0
     shifted["flex_shift_in_kw"] = 0.0
-    shifted["post_shift_kw_import"] = shifted["baseline_kw_import"].astype(float)
+    shifted["post_shift_gross_load_kw"] = shifted["optimization_load_kw"].astype(float)
 
     grouped = shifted.groupby(shifted["interval_end"].dt.date, sort=False)
     for _, indices in grouped.groups.items():
         day_slice = shifted.loc[list(indices)].copy()
-        threshold = float(day_slice["post_shift_kw_import"].quantile(0.85))
+        threshold = float(day_slice["post_shift_gross_load_kw"].quantile(0.85))
         if threshold <= 0:
             continue
 
-        donor_rows = day_slice.sort_values("post_shift_kw_import", ascending=False).index.tolist()
-        receiver_rows = day_slice.sort_values("post_shift_kw_import", ascending=True).index.tolist()
+        donor_rows = day_slice.sort_values("post_shift_gross_load_kw", ascending=False).index.tolist()
+        receiver_rows = day_slice.sort_values("post_shift_gross_load_kw", ascending=True).index.tolist()
 
         for donor in donor_rows:
-            current = float(shifted.at[donor, "post_shift_kw_import"])
+            current = float(shifted.at[donor, "post_shift_gross_load_kw"])
             removable = min(current * config.flexible_load_fraction, max(current - threshold, 0.0))
             if removable <= 0:
                 continue
@@ -86,7 +95,7 @@ def _apply_flexible_shift(profile: pd.DataFrame, config: OptimizationConfig) -> 
                 receiver_position = shifted.index.get_loc(receiver)
                 same_day = shifted.at[receiver, "interval_end"].date() == shifted.at[donor, "interval_end"].date()
                 within_window = abs(receiver_position - donor_position) <= config.shift_window_intervals
-                below_threshold = float(shifted.at[receiver, "post_shift_kw_import"]) < threshold
+                below_threshold = float(shifted.at[receiver, "post_shift_gross_load_kw"]) < threshold
                 if receiver != donor and same_day and within_window and below_threshold:
                     candidates.append(receiver)
 
@@ -94,21 +103,16 @@ def _apply_flexible_shift(profile: pd.DataFrame, config: OptimizationConfig) -> 
                 continue
 
             share = removable / len(candidates)
-            shifted.at[donor, "post_shift_kw_import"] = max(current - removable, 0.0)
+            shifted.at[donor, "post_shift_gross_load_kw"] = max(current - removable, 0.0)
             shifted.at[donor, "flex_shift_out_kw"] += removable
             for receiver in candidates:
-                shifted.at[receiver, "post_shift_kw_import"] += share
+                shifted.at[receiver, "post_shift_gross_load_kw"] += share
                 shifted.at[receiver, "flex_shift_in_kw"] += share
 
+    shifted["post_shift_kw_import"] = (
+        shifted["post_shift_gross_load_kw"].astype(float) - shifted["existing_solar_offset_kw"].astype(float)
+    ).clip(lower=0.0)
     return shifted
-
-
-def clear_sky_sine_solar_factor(timestamp: pd.Timestamp) -> float:
-    hour = timestamp.hour + timestamp.minute / 60.0
-    if hour <= 6 or hour >= 18:
-        return 0.0
-    daylight_progress = (hour - 6.0) / 12.0
-    return max(0.0, math.sin(math.pi * daylight_progress))
 
 
 def _solar_profile_factor(timestamp: pd.Timestamp) -> float:
@@ -121,11 +125,22 @@ def clear_sky_solar_factor(timestamp: pd.Timestamp) -> float:
 
 def _apply_solar(profile: pd.DataFrame, solar_kwp: float, base_solar_kwp: float) -> pd.DataFrame:
     working = profile.copy()
-    total_solar_kwp = max(0.0, float(base_solar_kwp) + float(solar_kwp))
-    working["solar_offset_kw"] = working["interval_end"].map(
-        lambda ts: total_solar_kwp * _solar_profile_factor(pd.Timestamp(ts))
+    if "existing_solar_offset_kw" in working.columns:
+        working["existing_solar_offset_kw"] = working["existing_solar_offset_kw"].astype(float).clip(lower=0.0)
+    else:
+        working["existing_solar_offset_kw"] = working["interval_end"].map(
+            lambda ts: max(0.0, float(base_solar_kwp)) * _solar_profile_factor(pd.Timestamp(ts))
+        )
+    working["new_solar_offset_kw"] = working["interval_end"].map(
+        lambda ts: max(0.0, float(solar_kwp)) * _solar_profile_factor(pd.Timestamp(ts))
     )
-    working["after_solar_kw_import"] = (working["post_shift_kw_import"] - working["solar_offset_kw"]).clip(lower=0.0)
+    working["solar_offset_kw"] = working["existing_solar_offset_kw"] + working["new_solar_offset_kw"]
+    solar_basis = (
+        working["post_shift_gross_load_kw"].astype(float)
+        if "post_shift_gross_load_kw" in working.columns
+        else working["post_shift_kw_import"].astype(float)
+    )
+    working["after_solar_kw_import"] = (solar_basis - working["solar_offset_kw"]).clip(lower=0.0)
     return working
 
 

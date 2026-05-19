@@ -149,7 +149,7 @@ export function buildTopRiskWindowItems(analysis: AnalysisResult, limit = 4): To
       };
     })
     .filter(item => item.isCritical || item.score > 0.65)
-    .sort((a, b) => Number(b.isCritical) - Number(a.isCritical) || b.score - a.score || b.load - a.load)
+    .sort((a, b) => Number(b.isCritical) - Number(a.isCritical) || b.load - a.load || b.score - a.score)
     .filter(item => {
       const date = new Date(item.point.interval_end);
       const key = `${date.toDateString()}-${date.getHours()}`;

@@ -67,6 +67,11 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Added Site Profile Peak Risk Timeline and Solar Impact Comparison cards based on active forecast and optimized schedule payloads.
 - Removed the duplicate Site Profile risk/action sections after the Forecast & Risk page became the owner of future peak-risk guidance.
 - Added Site Profile observed historical peak events and a unified Site Operating Pattern section so the page remains useful without duplicating Forecast & Risk or repeating large metric cards.
+- Reframed Forecast & Risk right-rail guidance into operational response content: recommended actions are tied to the selected forecast window, and the former Peak Reduction Plan is now an Immediate Mitigation summary rather than a duplicate optimization result.
+- Tightened Forecast & Risk layout and selected-window UX: the chart and Top Risk Windows stack in the left column, action cards stay in the right rail, Window Peak includes date/time context, and calm windows show a standby message instead of "0 kW".
+- Aligned Forecast & Risk ranking semantics so Top Risk Windows prioritizes critical-window kW intensity before risk-score tie-breaks, preventing a lower-kW event from appearing above the selected Window Peak.
+- Fixed Forecast & Risk month-scale scope controls so 2-month and 3-month analyses expose full 60-day and 90-day forecast windows, with matching Top Risk Windows outlook labels.
+- Removed the hardcoded sidebar dummy user profile, including the stock avatar and "Alex Sterling / Admin Access" placeholder.
 - Changed tariff simulation to charge MD once per 30-day planning month.
 - Replaced the solar sizing shape with a clear-sky sine profile.
 - Added backend-only `forecast_full_ml_planning_profile`, a LightGBM full planning candidate that changes p50 and predicts p90/p95 risk paths while keeping all model details out of the UI.
@@ -164,6 +169,11 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - 2026-05-19: Cleaned up Site Profile and Forecast & Risk page ownership. Site Profile now focuses on historical load and site-health metrics, while Forecast & Risk replaces the duplicate block timeline with a ranked Top Risk Windows list.
 - 2026-05-19: Filled out Site Profile with top observed historical peak timestamps plus weekday/weekend, daytime/night, and peak-to-average summaries, reducing empty page space while keeping future risk guidance only in Forecast & Risk.
 - 2026-05-19: Unified the Site Profile pattern summary and site facts into one compact Site Operating Pattern section, removing the conflicting lower six-card grid.
+- 2026-05-19: Improved Forecast & Risk right-rail guidance by replacing generic response labels and the confusing Peak Reduction Plan with selected-window response steps and an Immediate Mitigation card.
+- 2026-05-19: Removed the Forecast & Risk empty-gap layout issue and improved selected-window behavior for Window Peak and zero-reduction mitigation states.
+- 2026-05-19: Fixed a Forecast & Risk ranking inconsistency where Top Risk Windows could list a lower-kW critical event ahead of the Window Peak because risk score was sorted before intensity.
+- 2026-05-19: Fixed Forecast & Risk planning-horizon controls so the forecast window, Window Peak, Recommended Response, and Immediate Mitigation can use the active 2M/3M analysis horizon instead of stopping at 1M.
+- 2026-05-19: Removed the sidebar's hardcoded dummy profile block so the app shell no longer displays fake user identity content.
 - 2026-05-18: Added gross-load forecasting support for solar sites while preserving grid-import MD/billing semantics. Site 1 and Site 4 now resolve to the competition-provided `944.880 kWp` installed PV fallback, and the Forecast & Risk chart can toggle between Grid import and Gross load.
 - 2026-05-18: Fixed Forecast & Risk sub-window selection so 12h/24h/48h views start from the first future forecast interval, matching the monthly planning horizon start instead of showing the final hours of the month.
 - 2026-05-18: Split chart data sources so Site Profile uses historical `load_history` from the dataset and Forecast & Risk uses future forecast points for predicted load and peak-risk windows.

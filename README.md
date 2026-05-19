@@ -1,5 +1,4 @@
-# Kinetic Precision / TREX Energy App
-
+# PeakLogic
 Local React + FastAPI decision-support demo for TREX maximum-demand planning, forecasting, and optimization.
 
 ## Start Locally

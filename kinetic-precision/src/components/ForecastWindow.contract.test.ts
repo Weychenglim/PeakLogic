@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildForecastChartPoints,
-  buildForecastPeakTimelineItems,
+  buildTopRiskWindowItems,
   countPeakRiskAlerts,
   selectForecastPeakPoint,
 } from './ForecastRisk';
@@ -60,8 +60,12 @@ assert.equal(buildForecastChartPoints({
   },
 }, 288, 'gross_load').at(0)?.forecast, 180);
 assert.equal(buildSiteLoadChartPoints(analysis).at(-1)?.load, 60);
-assert.equal(buildForecastPeakTimelineItems(analysis).length, 4);
 assert.equal(buildPeakTimelineItems(analysis).length, 4);
+const topRiskWindows = buildTopRiskWindowItems(analysis);
+assert.equal(topRiskWindows.length, 2);
+assert.equal(topRiskWindows.at(0)?.peakLoad, 900);
+assert.equal(topRiskWindows.at(0)?.level, 'critical');
+assert.equal(topRiskWindows.at(0)?.action, 'Battery discharge');
 
 const monthForecast = {
   ...analysis,

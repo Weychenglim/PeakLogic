@@ -1,6 +1,6 @@
 import {
   buildPeakTimelineItems,
-  buildSolarImpactComparison,
+  buildSiteLoadChartPoints,
 } from './SiteProfile';
 import type { AnalysisResult } from '../lib/api';
 
@@ -23,27 +23,11 @@ export const peakTimelineContract = buildPeakTimelineItems({
   },
 } as AnalysisResult);
 
-export const solarImpactContract = buildSolarImpactComparison({
-  assumptions: {
-    planning_months: 1,
-    growth_rate_pct: 0,
-    ev_load_kw: 0,
-    md_rate_rm_per_kw: 97.06,
-    peak_energy_rate_rm_per_kwh: 0.455,
-    offpeak_energy_rate_rm_per_kwh: 0.365,
-    battery_capex_rm_per_kw: 1400,
-    battery_capex_rm_per_kwh: 900,
-    solar_capex_rm_per_kwp: 3200,
-  },
-  optimization: {
-    schedule_preview: [
-      {
-        interval_end: '2025-01-01T12:30:00',
-        baseline_kw_import: 100,
-        optimized_kw_import: 75,
-        solar_offset_kw: 25,
-        battery_discharge_kw: 0,
-      },
-    ],
-  },
+export const siteLoadContract = buildSiteLoadChartPoints({
+  load_history: [
+    {
+      interval_end: '2025-01-01T12:30:00',
+      kw_import: 100,
+    },
+  ],
 } as AnalysisResult);

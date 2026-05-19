@@ -5,11 +5,10 @@ import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from '.
 import type { AnalysisResult } from '../lib/api';
 import {
   buildForecastChartPoints,
-  buildPeakTimelineItems,
+  buildTopRiskWindowItems,
   countPeakRiskAlerts,
   forecastGrossLoad,
   forecastLoad,
-  forecastWindowLabel,
   selectForecastWindowPoints,
   selectForecastPeakPoint,
   type ForecastChartBasis,
@@ -17,7 +16,7 @@ import {
 
 export {
   buildForecastChartPoints,
-  buildPeakTimelineItems as buildForecastPeakTimelineItems,
+  buildTopRiskWindowItems,
   countPeakRiskAlerts,
   selectForecastWindowPoints,
   selectForecastPeakPoint,
@@ -84,8 +83,7 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
   const peakLoad = peakPoint ? Number(peakPoint.calibrated_p95_stress_kw ?? peakPoint.md_risk_envelope_kw ?? peakPoint.forecast_kw_import) : 0;
   const peakTime = peakPoint?.interval_end ?? data[0]?.rawTime ?? new Date().toISOString();
   const chartPeak = data.reduce((peak, point) => (point.forecast > peak.forecast ? point : peak), data[0] ?? { time: '', forecast: 0 });
-  const timelineItems = buildPeakTimelineItems(analysis);
-  const windowLabel = forecastWindowLabel(analysis);
+  const riskWindows = buildTopRiskWindowItems(analysis);
   const best = analysis.optimization.best_scenario;
 
   return (
@@ -200,24 +198,46 @@ export function ForecastRisk({ analysis, loading, loadingStep, error }: Forecast
         <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm lg:col-span-2">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h4 className="font-bold">Peak Risk Timeline</h4>
-              <p className="text-xs font-medium text-on-surface-variant">{windowLabel}</p>
+              <h4 className="font-bold">Top Risk Windows</h4>
+              <p className="text-xs font-medium text-on-surface-variant">Ranked forecast intervals that deserve operator attention.</p>
             </div>
             <span className="rounded-full bg-primary-fixed px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">{overlayEvents} alerts</span>
           </div>
-          <div className="grid grid-cols-6 gap-1">
-            {timelineItems.slice(0, 36).map(item => (
+          <div className="grid gap-3">
+            {riskWindows.map(item => (
               <div
                 key={item.key}
-                className={`h-8 rounded-md ${item.level === 'critical' ? 'bg-tertiary-fixed border border-tertiary/20' : item.level === 'risk' ? 'bg-primary-fixed' : 'bg-surface-container-low'}`}
-                title={`${item.time}: ${item.label}, ${item.peakLoad.toFixed(0)} kW`}
-              />
+                className="grid gap-4 rounded-lg border border-outline-variant/10 bg-surface-container-low p-4 md:grid-cols-[auto_1fr_auto] md:items-center"
+              >
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg text-xs font-black ${
+                  item.level === 'critical' ? 'bg-tertiary-fixed text-tertiary' : 'bg-primary-fixed text-primary'
+                }`}>
+                  {item.rank}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black text-on-surface">{item.day}, {item.timeWindow}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-widest ${
+                      item.level === 'critical' ? 'bg-tertiary-fixed text-tertiary' : 'bg-primary-fixed text-primary'
+                    }`}>
+                      {item.level === 'critical' ? 'Critical' : 'MD risk'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-on-surface-variant">{item.label} · {item.action}</p>
+                </div>
+                <div className="md:text-right">
+                  <p className="font-headline text-xl font-black text-on-surface">{item.peakLoad.toFixed(0)} kW</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                    {(item.score * 100).toFixed(0)} risk
+                  </p>
+                </div>
+              </div>
             ))}
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-            <span className="rounded-full bg-surface-container-low px-3 py-2">Morning ramp</span>
-            <span className="rounded-full bg-tertiary-fixed px-3 py-2 text-tertiary">Operational peak</span>
-            <span className="rounded-full bg-primary-fixed px-3 py-2 text-primary">Evening MD risk</span>
+            {riskWindows.length === 0 && (
+              <div className="rounded-lg border border-outline-variant/10 bg-surface-container-low p-5 text-sm font-bold text-on-surface-variant">
+                No high-risk forecast windows in the selected planning run.
+              </div>
+            )}
           </div>
         </section>
 

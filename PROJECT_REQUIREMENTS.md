@@ -82,7 +82,8 @@ The app must:
 - expose editable planning, tariff, CAPEX, growth, and EV-load assumptions directly in the Optimization tab, with an Apply action that reruns the active workbook or retained upload
 - explain Optimization results with judge-facing "what changed", "why this scenario", and "savings sensitivity" copy without adding site-by-site or model-comparison views
 - return backend-generated Optimization explanation, planning-basis labels, confidence flags, and active-analysis +/-10% tariff/CAPEX sensitivity rows for the current workbook or upload
-- show a Peak Risk Timeline and Solar Impact Comparison in Site Profile using the active analysis rather than site-by-site/model comparison
+- keep Site Profile focused on historical load shape, observed MD, solar metadata, interval counts, and data-quality status
+- keep future peak-risk windows and operator response guidance in Forecast & Risk only
 - identify likely peak demand periods and MD-risk intervals
 - simulate flexible load shifting using an aggregate flexible-load-block model
 - simulate battery dispatch for peak shaving and optional energy arbitrage
@@ -105,6 +106,7 @@ Current implementation note:
 - Bundled Site 1 and bundled Site 4 use `944.880 kWp` as installed existing PV when no user override is supplied. Future uploaded solar datasets with missing PV capacity default to `0 kWp` unless the user enters a value.
 - Site Profile charts should show historical dataset load, while Forecast & Risk charts should show future forecast points and predicted peak-risk windows.
 - Forecast & Risk sub-window controls such as 12h, 24h, and 48h should preview from the first future forecast interval, matching the start of the active monthly planning horizon rather than jumping to the end of the month.
+- Forecast & Risk should present high-risk periods as a ranked Top Risk Windows list instead of a dense block timeline, so each row shows the forecast window, risk level, intensity, and recommended action.
 - FastAPI bundled and upload analyses should try the promoted `md_ensemble_gradient_boosting` forecast first. Bundled analyses may use the other bundled workbooks as reference frames; all analyses must fall back to the stable recent-pattern planner when the ensemble is unavailable.
 
 ## Non-Functional Requirements

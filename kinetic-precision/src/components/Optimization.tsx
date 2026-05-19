@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Battery, CheckCircle2, Gauge, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, TrendingDown, WalletCards, Zap } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
@@ -119,6 +120,8 @@ export function Optimization({
   onApplyAssumptions,
   canApplyAssumptions,
 }: OptimizationProps) {
+  const [showAssumptions, setShowAssumptions] = useState(false);
+
   if (!analysis) {
     if (loading) return <LoadingProgress activeStep={loadingStep} />;
     if (error) return <ErrorCard title="Optimization unavailable" message={error} />;
@@ -164,6 +167,24 @@ export function Optimization({
             <p className="text-[10px] font-black uppercase tracking-widest text-on-secondary-fixed/70">Why this scenario</p>
             <p className="mt-2 text-sm font-semibold leading-relaxed text-on-secondary-fixed">{explanation.why_this_scenario}</p>
           </div>
+
+          <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Assumptions used</p>
+              <p className="mt-1 text-xs font-semibold text-on-surface-variant">
+                {analysisAssumptions.planning_months} month{analysisAssumptions.planning_months === 1 ? '' : 's'} · RM {analysisAssumptions.md_rate_rm_per_kw.toFixed(2)}/kW MD · RM {analysisAssumptions.solar_capex_rm_per_kwp.toFixed(0)}/kWp solar
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAssumptions(current => !current)}
+              aria-expanded={showAssumptions}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-primary/15 bg-primary-fixed px-4 py-2 text-xs font-black uppercase tracking-widest text-primary transition-colors hover:bg-primary-fixed-dim"
+            >
+              <SlidersHorizontal size={14} />
+              {showAssumptions ? 'Hide inputs' : 'Edit inputs'}
+            </button>
+          </div>
         </div>
 
         <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-7">
@@ -194,6 +215,69 @@ export function Optimization({
           />
         </div>
       </section>
+
+      <div
+        className={cn(
+          'overflow-hidden transition-[max-height,opacity,transform,margin] duration-300 ease-out',
+          showAssumptions ? 'max-h-[720px] opacity-100 translate-y-0' : 'max-h-0 -translate-y-2 opacity-0 -mt-8 pointer-events-none'
+        )}
+        aria-hidden={!showAssumptions}
+      >
+        <section className="rounded-xl border border-primary-fixed/60 bg-surface-container-lowest p-6 shadow-sm transition-shadow duration-300">
+          <div className="transition-opacity delay-75 duration-200">
+            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-tertiary-fixed text-tertiary">
+                  <SlidersHorizontal size={19} />
+                </div>
+                <div>
+                  <h3 className="font-headline text-xl font-black text-on-surface">Decision Assumptions</h3>
+                  <p className="text-xs font-medium text-on-surface-variant">
+                    Adjust the planning inputs, then rerun this same analysis with the updated assumptions.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onApplyAssumptions}
+                disabled={loading || !canApplyAssumptions}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                {loading ? 'Applying' : 'Apply changes'}
+              </button>
+            </div>
+
+            <div className="mb-5">
+              <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Planning horizon</p>
+              <div className="inline-grid grid-cols-3 rounded-lg bg-surface-container-low p-1">
+                {[1, 2, 3].map(months => (
+                  <button
+                    key={months}
+                    onClick={() => updateAssumption('planning_months', months)}
+                    className={cn(
+                      'rounded-md px-5 py-2 text-xs font-black transition-colors',
+                      assumptions.planning_months === months ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'
+                    )}
+                  >
+                    {months}M
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-4">
+              <AssumptionField label="MD rate" value={assumptions.md_rate_rm_per_kw} step={0.01} suffix="RM/kW" onChange={value => updateAssumption('md_rate_rm_per_kw', value)} />
+              <AssumptionField label="Peak energy" value={assumptions.peak_energy_rate_rm_per_kwh} step={0.001} suffix="RM/kWh" onChange={value => updateAssumption('peak_energy_rate_rm_per_kwh', value)} />
+              <AssumptionField label="Off-peak energy" value={assumptions.offpeak_energy_rate_rm_per_kwh} step={0.001} suffix="RM/kWh" onChange={value => updateAssumption('offpeak_energy_rate_rm_per_kwh', value)} />
+              <AssumptionField label="Battery power CAPEX" value={assumptions.battery_capex_rm_per_kw} step={50} suffix="RM/kW" onChange={value => updateAssumption('battery_capex_rm_per_kw', value)} />
+              <AssumptionField label="Battery energy CAPEX" value={assumptions.battery_capex_rm_per_kwh} step={50} suffix="RM/kWh" onChange={value => updateAssumption('battery_capex_rm_per_kwh', value)} />
+              <AssumptionField label="Solar CAPEX" value={assumptions.solar_capex_rm_per_kwp} step={50} suffix="RM/kWp" onChange={value => updateAssumption('solar_capex_rm_per_kwp', value)} />
+              <AssumptionField label="Growth rate" value={assumptions.growth_rate_pct} step={0.1} suffix="%" onChange={value => updateAssumption('growth_rate_pct', value)} />
+              <AssumptionField label="EV load" value={assumptions.ev_load_kw} step={1} suffix="kW" onChange={value => updateAssumption('ev_load_kw', value)} />
+            </div>
+          </div>
+        </section>
+      </div>
 
       <section className="grid grid-cols-12 gap-6">
         <div className="col-span-12 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm lg:col-span-8">
@@ -268,58 +352,6 @@ export function Optimization({
         </section>
       )}
 
-      <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-tertiary-fixed text-tertiary">
-              <SlidersHorizontal size={19} />
-            </div>
-            <div>
-              <h3 className="font-headline text-xl font-black text-on-surface">Decision Assumptions</h3>
-              <p className="text-xs font-medium text-on-surface-variant">
-                Current result uses {analysisAssumptions.planning_months} month{analysisAssumptions.planning_months === 1 ? '' : 's'}, RM {analysisAssumptions.md_rate_rm_per_kw.toFixed(2)}/kW MD, and RM {analysisAssumptions.solar_capex_rm_per_kwp.toFixed(0)}/kWp solar CAPEX.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onApplyAssumptions}
-            disabled={loading || !canApplyAssumptions}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-on-primary transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Applying' : 'Apply changes'}
-          </button>
-        </div>
-
-        <div className="mb-5">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Planning horizon</p>
-          <div className="inline-grid grid-cols-3 rounded-lg bg-surface-container-low p-1">
-            {[1, 2, 3].map(months => (
-              <button
-                key={months}
-                onClick={() => updateAssumption('planning_months', months)}
-                className={cn(
-                  'rounded-md px-5 py-2 text-xs font-black transition-colors',
-                  assumptions.planning_months === months ? 'bg-primary text-on-primary shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'
-                )}
-              >
-                {months}M
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-4">
-          <AssumptionField label="MD rate" value={assumptions.md_rate_rm_per_kw} step={0.01} suffix="RM/kW" onChange={value => updateAssumption('md_rate_rm_per_kw', value)} />
-          <AssumptionField label="Peak energy" value={assumptions.peak_energy_rate_rm_per_kwh} step={0.001} suffix="RM/kWh" onChange={value => updateAssumption('peak_energy_rate_rm_per_kwh', value)} />
-          <AssumptionField label="Off-peak energy" value={assumptions.offpeak_energy_rate_rm_per_kwh} step={0.001} suffix="RM/kWh" onChange={value => updateAssumption('offpeak_energy_rate_rm_per_kwh', value)} />
-          <AssumptionField label="Battery power CAPEX" value={assumptions.battery_capex_rm_per_kw} step={50} suffix="RM/kW" onChange={value => updateAssumption('battery_capex_rm_per_kw', value)} />
-          <AssumptionField label="Battery energy CAPEX" value={assumptions.battery_capex_rm_per_kwh} step={50} suffix="RM/kWh" onChange={value => updateAssumption('battery_capex_rm_per_kwh', value)} />
-          <AssumptionField label="Solar CAPEX" value={assumptions.solar_capex_rm_per_kwp} step={50} suffix="RM/kWp" onChange={value => updateAssumption('solar_capex_rm_per_kwp', value)} />
-          <AssumptionField label="Growth rate" value={assumptions.growth_rate_pct} step={0.1} suffix="%" onChange={value => updateAssumption('growth_rate_pct', value)} />
-          <AssumptionField label="EV load" value={assumptions.ev_load_kw} step={1} suffix="kW" onChange={value => updateAssumption('ev_load_kw', value)} />
-        </div>
-      </section>
     </div>
   );
 }

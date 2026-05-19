@@ -13,7 +13,9 @@ import pandas as pd
 from trex_energy.forecasting import (
     backtest_monthly_planning_profile,
     backtest_site_forecast,
+    forecast_md_ensemble_profile,
     forecast_monthly_planning_profile,
+    resolve_existing_pv_kwp,
 )
 from trex_energy.ingestion import ACTIVE_POWER_UNITS, load_site_workbook
 from trex_energy.optimization import OptimizationConfig, evaluate_assumption_sensitivity, evaluate_site_scenarios
@@ -86,18 +88,48 @@ def _find_bundled_file(source_file: str) -> Path:
     raise HTTPException(status_code=404, detail=f"Unknown bundled workbook: {requested_name}")
 
 
+def _bundled_reference_frames(source_file: str, active_power_unit: str) -> list[pd.DataFrame]:
+    requested_name = Path(source_file).name
+    references: list[pd.DataFrame] = []
+    for workbook in _site_files():
+        if workbook.name == requested_name:
+            continue
+        try:
+            reference_frame, _ = load_site_workbook(workbook, active_power_unit=active_power_unit)
+        except Exception:
+            continue
+        if not reference_frame.empty:
+            references.append(reference_frame)
+    return references
+
+
 def _forecast_planning_profile(
     frame: pd.DataFrame,
     *,
     months: int,
     growth_rate_pct: float = 0.0,
     ev_load_kw: float = 0.0,
+    existing_pv_kwp: float | None = None,
+    reference_frames: list[pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
+    try:
+        return forecast_md_ensemble_profile(
+            frame,
+            months=months,
+            reference_frames=reference_frames,
+            growth_rate_pct=growth_rate_pct,
+            ev_load_kw=ev_load_kw,
+            existing_pv_kwp=existing_pv_kwp,
+        )
+    except Exception:
+        pass
+
     return forecast_monthly_planning_profile(
         frame,
         months=months,
         growth_rate_pct=growth_rate_pct,
         ev_load_kw=ev_load_kw,
+        existing_pv_kwp=existing_pv_kwp,
     )
 
 
@@ -109,6 +141,7 @@ def _build_analysis_payload(
     growth_rate_pct: float = 0.0,
     ev_load_kw: float = 0.0,
     existing_pv_kwp: float | None = None,
+    reference_frames: list[pd.DataFrame] | None = None,
     use_md_risk_envelope: bool = True,
     md_rate_rm_per_kw: float = 97.06,
     peak_energy_rate_rm_per_kwh: float = 0.455,
@@ -122,19 +155,28 @@ def _build_analysis_payload(
 
     validation = validate_intervals(frame)
     profile = build_site_summary(frame)
+    site_id = str(frame["site_id"].iloc[0])
+    metadata_existing_pv = getattr(metadata, "existing_pv_kwp", None)
+    resolved_existing_pv = resolve_existing_pv_kwp(
+        site_id=site_id,
+        source_file=getattr(metadata, "source_file", ""),
+        has_solar=bool(getattr(metadata, "has_solar", False)),
+        user_existing_pv_kwp=existing_pv_kwp,
+        metadata_existing_pv_kwp=metadata_existing_pv,
+    )
     forecast = _forecast_planning_profile(
         frame,
         months=months,
         growth_rate_pct=growth_rate_pct,
         ev_load_kw=ev_load_kw,
+        existing_pv_kwp=resolved_existing_pv,
+        reference_frames=reference_frames,
     )
     tariff = TariffConfig(
         md_rate_rm_per_kw=md_rate_rm_per_kw,
         peak_energy_rate_rm_per_kwh=peak_energy_rate_rm_per_kwh,
         offpeak_energy_rate_rm_per_kwh=offpeak_energy_rate_rm_per_kwh,
     )
-    metadata_existing_pv = getattr(metadata, "existing_pv_kwp", None)
-    resolved_existing_pv = existing_pv_kwp if existing_pv_kwp is not None else metadata_existing_pv
     base_solar_kwp = float(resolved_existing_pv) if resolved_existing_pv is not None else 0.0
     optimization_config = OptimizationConfig(
         use_md_risk_envelope=use_md_risk_envelope,
@@ -157,7 +199,6 @@ def _build_analysis_payload(
     except Exception as exc:
         monthly_backtest = {"error": str(exc)}
 
-    site_id = str(frame["site_id"].iloc[0])
     assumptions = {
         "planning_months": months,
         "growth_rate_pct": growth_rate_pct,
@@ -183,6 +224,7 @@ def _build_analysis_payload(
         "assumptions": assumptions,
         "validation": validation_payload,
         "profile": {key: _json_value(value) for key, value in profile.items()},
+        "load_history": _records(frame),
         "normalized_preview": _records(frame, limit=20),
         "forecast": {
             "metrics": {
@@ -241,6 +283,7 @@ def analyze_bundled(request: BundledAnalysisRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="active_power_unit must be auto, kw, or kwh_per_interval")
     workbook = _find_bundled_file(request.source_file)
     frame, metadata = load_site_workbook(workbook, active_power_unit=request.active_power_unit)
+    reference_frames = _bundled_reference_frames(request.source_file, request.active_power_unit)
     return _build_analysis_payload(
         frame,
         metadata,
@@ -248,6 +291,7 @@ def analyze_bundled(request: BundledAnalysisRequest) -> dict[str, Any]:
         growth_rate_pct=request.growth_rate_pct,
         ev_load_kw=request.ev_load_kw,
         existing_pv_kwp=request.existing_pv_kwp,
+        reference_frames=reference_frames,
         use_md_risk_envelope=request.use_md_risk_envelope,
         md_rate_rm_per_kw=request.md_rate_rm_per_kw,
         peak_energy_rate_rm_per_kwh=request.peak_energy_rate_rm_per_kwh,

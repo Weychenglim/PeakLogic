@@ -32,6 +32,12 @@ ROLL_WINDOWS = [4, 24, 48]
 PLANNING_INTERVALS_PER_MONTH = 30 * 48
 LONG_HORIZON_MIN_HISTORY = 21 * 48
 LONG_HORIZON_TRAINING_HORIZON = 30 * 48
+KNOWN_BUNDLED_SOLAR_KWP = {
+    "1. Load Profile (With Solar Installed) SoL": 944.880,
+    "1. Load Profile (With Solar Installed) SoL.xlsx": 944.880,
+    "4. Load Profile (With Solar) Mi2": 944.880,
+    "4. Load Profile (With Solar) Mi2.xlsx": 944.880,
+}
 
 
 @dataclass(frozen=True)
@@ -87,12 +93,49 @@ class GatedP50CorrectionPolicy:
 
 
 @dataclass(frozen=True)
+class MonthlyMDCorrectionPolicy:
+    p50_min_ratio: float = 0.88
+    p50_max_ratio: float = 1.18
+    p90_min_ratio: float = 0.90
+    p90_max_ratio: float = 1.10
+    p95_min_ratio: float = 0.92
+    p95_max_ratio: float = 1.08
+    p50_correction_strength: float = 0.25
+    risk_correction_strength: float = 0.25
+    active_quantile: float = 0.94
+
+
+@dataclass(frozen=True)
 class TrainedRidge:
     model: Pipeline
     feature_columns: list[str]
     alpha: float
     alpha_scores: pd.DataFrame
     normalize_targets: bool
+
+
+def clear_sky_sine_solar_factor(timestamp: pd.Timestamp) -> float:
+    hour = timestamp.hour + timestamp.minute / 60.0
+    if hour <= 6.0 or hour >= 18.0:
+        return 0.0
+    return float(np.sin(np.pi * (hour - 6.0) / 12.0))
+
+
+def resolve_existing_pv_kwp(
+    *,
+    site_id: str,
+    source_file: str,
+    has_solar: bool,
+    user_existing_pv_kwp: float | None = None,
+    metadata_existing_pv_kwp: float | None = None,
+) -> float:
+    if user_existing_pv_kwp is not None:
+        return max(0.0, float(user_existing_pv_kwp))
+    if metadata_existing_pv_kwp is not None:
+        return max(0.0, float(metadata_existing_pv_kwp))
+    if not has_solar:
+        return 0.0
+    return float(KNOWN_BUNDLED_SOLAR_KWP.get(source_file, KNOWN_BUNDLED_SOLAR_KWP.get(site_id, 0.0)))
 
 
 def _add_peak_flags(forecast: pd.DataFrame) -> pd.DataFrame:
@@ -179,6 +222,7 @@ def forecast_monthly_planning_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     if months not in {1, 2, 3}:
         raise ValueError("months must be 1, 2, or 3")
@@ -186,14 +230,33 @@ def forecast_monthly_planning_profile(
         raise ValueError("Target frame is empty")
 
     ordered = target_frame.sort_values("interval_end").reset_index(drop=True).copy()
+    site_id = str(ordered["site_id"].iloc[0])
+    source_file = str(ordered["source_file"].iloc[0]) if "source_file" in ordered.columns else site_id
+    has_solar = bool(ordered["has_solar"].fillna(False).iloc[-1]) if "has_solar" in ordered.columns else False
+    metadata_pv_kwp = None
+    if "existing_pv_kwp" in ordered.columns:
+        pv_values = pd.to_numeric(ordered["existing_pv_kwp"], errors="coerce").dropna()
+        if not pv_values.empty:
+            metadata_pv_kwp = float(pv_values.iloc[-1])
+    resolved_existing_pv_kwp = resolve_existing_pv_kwp(
+        site_id=site_id,
+        source_file=source_file,
+        has_solar=has_solar,
+        user_existing_pv_kwp=existing_pv_kwp,
+        metadata_existing_pv_kwp=metadata_pv_kwp,
+    )
+    ordered["estimated_existing_solar_kw"] = ordered["interval_end"].map(
+        lambda ts: resolved_existing_pv_kwp * clear_sky_sine_solar_factor(pd.Timestamp(ts))
+    )
+    ordered["gross_load_kw"] = ordered["kw_import"].astype(float) + ordered["estimated_existing_solar_kw"].astype(float)
     recent_count = min(len(ordered), max(48, int(recent_days * 48)))
     recent = ordered.tail(recent_count).copy()
     recent["slot_index"] = recent["interval_end"].map(lambda ts: _slot_index(pd.Timestamp(ts)))
     recent["day_type"] = recent["interval_end"].dt.dayofweek.map(lambda day: "weekend" if day >= 5 else "weekday")
-    has_solar = bool(ordered["has_solar"].fillna(False).iloc[-1]) if "has_solar" in ordered.columns else False
+    forecast_basis = "gross_load_with_existing_solar" if resolved_existing_pv_kwp > 0 else "grid_import"
 
     grouped = (
-        recent.groupby(["day_type", "slot_index"], observed=True)["kw_import"]
+        recent.groupby(["day_type", "slot_index"], observed=True)["gross_load_kw"]
         .agg(
             p50_kw="median",
             p90_kw=lambda values: values.quantile(0.90),
@@ -213,7 +276,7 @@ def forecast_monthly_planning_profile(
     }
 
     slot_fallback = (
-        recent.groupby("slot_index", observed=True)["kw_import"]
+        recent.groupby("slot_index", observed=True)["gross_load_kw"]
         .agg(
             p50_kw="median",
             p90_kw=lambda values: values.quantile(0.90),
@@ -231,12 +294,11 @@ def forecast_monthly_planning_profile(
         )
         for row in slot_fallback.itertuples(index=False)
     }
-    global_p50 = float(recent["kw_import"].median())
-    global_p90 = float(recent["kw_import"].quantile(0.90))
-    global_p95 = float(recent["kw_import"].quantile(0.95))
-    global_envelope = float(recent["kw_import"].quantile(risk_quantile))
+    global_p50 = float(recent["gross_load_kw"].median())
+    global_p90 = float(recent["gross_load_kw"].quantile(0.90))
+    global_p95 = float(recent["gross_load_kw"].quantile(0.95))
+    global_envelope = float(recent["gross_load_kw"].quantile(risk_quantile))
 
-    site_id = str(ordered["site_id"].iloc[0])
     last_end = pd.Timestamp(ordered["interval_end"].iloc[-1])
     horizon = months * PLANNING_INTERVALS_PER_MONTH
     growth_multiplier = max(0.0, 1.0 + float(growth_rate_pct) / 100.0)
@@ -275,10 +337,15 @@ def forecast_monthly_planning_profile(
 
         hour = interval_end.hour + interval_end.minute / 60.0
         ev_adder = float(ev_load_kw) if ev_load_kw > 0 and _is_in_hour_window(hour, ev_start_hour, ev_end_hour) else 0.0
-        p50_forecast_kw = max(p50_kw * growth_multiplier + ev_adder, 0.0)
-        p90_md_risk_kw = max(p90_kw * growth_multiplier + ev_adder, p50_forecast_kw)
-        p95_stress_kw = max(p95_kw * growth_multiplier + ev_adder, p90_md_risk_kw)
-        risk_envelope_kw = max(envelope_kw * growth_multiplier + ev_adder, p90_md_risk_kw)
+        forecast_existing_solar_kw = resolved_existing_pv_kwp * clear_sky_sine_solar_factor(interval_end)
+        gross_p50_kw = max(p50_kw * growth_multiplier + ev_adder, 0.0)
+        gross_p90_kw = max(p90_kw * growth_multiplier + ev_adder, gross_p50_kw)
+        gross_p95_kw = max(p95_kw * growth_multiplier + ev_adder, gross_p90_kw)
+        gross_envelope_kw = max(envelope_kw * growth_multiplier + ev_adder, gross_p90_kw)
+        p50_forecast_kw = max(gross_p50_kw - forecast_existing_solar_kw, 0.0)
+        p90_md_risk_kw = max(gross_p90_kw - forecast_existing_solar_kw, p50_forecast_kw, 0.0)
+        p95_stress_kw = max(gross_p95_kw - forecast_existing_solar_kw, p90_md_risk_kw, 0.0)
+        risk_envelope_kw = max(gross_envelope_kw - forecast_existing_solar_kw, p90_md_risk_kw, 0.0)
         is_late_horizon = step > 7 * 48
         is_night_risk_window = hour >= 18 or hour < 6
         slot_is_recent_peak_shape = slot in peak_night_slots
@@ -298,6 +365,9 @@ def forecast_monthly_planning_profile(
                 "interval_start": interval_start,
                 "interval_end": interval_end,
                 "forecast_kw_import": p50_forecast_kw,
+                "forecast_gross_load_kw": gross_p50_kw,
+                "estimated_existing_solar_kw": forecast_existing_solar_kw,
+                "forecast_basis": forecast_basis,
                 "md_risk_envelope_kw": p90_md_risk_kw,
                 "p50_forecast_kw": p50_forecast_kw,
                 "p90_md_risk_kw": p90_md_risk_kw,
@@ -1503,6 +1573,251 @@ def forecast_gated_ml_planning_profile(
     return _add_planning_peak_flags(adjusted)
 
 
+def _monthly_md_correction_features(history_frame: pd.DataFrame, baseline_forecast: pd.DataFrame) -> dict[str, float]:
+    features = _md_risk_model_features(history_frame, baseline_forecast)
+    ordered = history_frame.sort_values("interval_end").reset_index(drop=True).copy()
+    values = pd.to_numeric(ordered["kw_import"], errors="coerce").astype(float)
+    scale = max(site_scale_from_frame(ordered), 1.0)
+    recent_7d = values.tail(7 * 48)
+    recent_14d = values.tail(14 * 48)
+    recent_28d = values.tail(28 * 48)
+    p50_md = float(baseline_forecast["p50_forecast_kw"].max())
+    p90_md = float(baseline_forecast["p90_md_risk_kw"].max())
+    p95_md = float(baseline_forecast["p95_stress_kw"].max())
+
+    features.update(
+        {
+            "recent_7d_md_norm": (float(recent_7d.max()) if not recent_7d.empty else 0.0) / scale,
+            "recent_14d_md_norm": (float(recent_14d.max()) if not recent_14d.empty else 0.0) / scale,
+            "recent_28d_md_norm": (float(recent_28d.max()) if not recent_28d.empty else 0.0) / scale,
+            "recent_7d_p95_norm": _safe_quantile(recent_7d, 0.95, 0.0) / scale,
+            "recent_14d_p95_norm": _safe_quantile(recent_14d, 0.95, 0.0) / scale,
+            "planner_p50_to_recent_28d_md_ratio": p50_md / max(float(recent_28d.max()) if not recent_28d.empty else p50_md, 1.0),
+            "planner_p90_to_p50_ratio": p90_md / max(p50_md, 1.0),
+            "planner_p95_to_p50_ratio": p95_md / max(p50_md, 1.0),
+        }
+    )
+    return features
+
+
+def _build_monthly_md_correction_training_rows(
+    frames: Iterable[pd.DataFrame],
+    max_training_rows: int = 400,
+) -> tuple[pd.DataFrame, list[str]]:
+    rows: list[dict[str, float]] = []
+    horizon = 30 * 48
+    for frame in frames:
+        if len(rows) >= max_training_rows:
+            break
+        ordered = frame.sort_values("interval_end").reset_index(drop=True).copy()
+        if len(ordered) <= LONG_HORIZON_MIN_HISTORY + horizon:
+            continue
+
+        cutoffs = range(LONG_HORIZON_MIN_HISTORY, len(ordered) - horizon + 1, 7 * 48)
+        for cutoff in cutoffs:
+            history = ordered.iloc[:cutoff].copy()
+            actual = ordered.iloc[cutoff : cutoff + horizon].copy()
+            if actual.empty:
+                continue
+            baseline = forecast_monthly_planning_profile(history, months=1)
+            actual_md = float(actual["kw_import"].max())
+            p50_md = float(baseline["p50_forecast_kw"].max())
+            p90_md = float(baseline["p90_md_risk_kw"].max())
+            p95_md = float(baseline["p95_stress_kw"].max())
+            rows.append(
+                {
+                    **_monthly_md_correction_features(history, baseline),
+                    "p50_md_ratio": float(np.clip(actual_md / max(p50_md, 1.0), 0.70, 1.45)),
+                    "p90_md_ratio": float(np.clip(actual_md / max(p90_md, 1.0), 0.75, 1.35)),
+                    "p95_md_ratio": float(np.clip(actual_md / max(p95_md, 1.0), 0.75, 1.30)),
+                }
+            )
+            if len(rows) >= max_training_rows:
+                break
+
+    if not rows:
+        raise ValueError("No monthly MD correction training rows were produced")
+
+    training_rows = pd.DataFrame(rows).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    target_columns = ["p50_md_ratio", "p90_md_ratio", "p95_md_ratio"]
+    feature_columns = [column for column in training_rows.columns if column not in target_columns]
+    return training_rows, feature_columns
+
+
+def _fit_monthly_md_correction_models(
+    training_rows: pd.DataFrame,
+    feature_columns: list[str],
+) -> dict[str, LGBMRegressor]:
+    models: dict[str, LGBMRegressor] = {}
+    for name, target_column, random_state in (
+        ("p50", "p50_md_ratio", 61),
+        ("p90", "p90_md_ratio", 67),
+        ("p95", "p95_md_ratio", 71),
+    ):
+        model = LGBMRegressor(
+            objective="regression",
+            n_estimators=45,
+            learning_rate=0.05,
+            num_leaves=7,
+            min_child_samples=4,
+            reg_lambda=0.08,
+            n_jobs=1,
+            verbosity=-1,
+            random_state=random_state,
+        )
+        model.fit(training_rows[feature_columns], training_rows[target_column])
+        models[name] = model
+    return models
+
+
+def _localized_monthly_md_correction(
+    base_values: pd.Series,
+    target_md_kw: float,
+    timing_scores: pd.Series,
+    active_quantile: float,
+) -> pd.Series:
+    base = base_values.astype(float).copy()
+    current_md = float(base.max()) if not base.empty else 0.0
+    if current_md <= 0 or abs(target_md_kw - current_md) <= 1.0e-9:
+        return base
+
+    scores = timing_scores.astype(float).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    if float(scores.max()) <= 0:
+        active = base == current_md
+        normalized = pd.Series(1.0, index=base.index)
+    else:
+        threshold = float(scores.quantile(active_quantile))
+        active = scores >= threshold
+        if not bool(active.any()):
+            active = scores == scores.max()
+        normalized = scores / max(float(scores.max()), 1.0e-9)
+
+    adjusted = base.copy()
+    delta = float(target_md_kw) - current_md
+    adjusted.loc[active] = adjusted.loc[active] + delta * normalized.loc[active]
+    peak_idx = scores.idxmax() if float(scores.max()) > 0 else base.idxmax()
+    adjusted.loc[peak_idx] = target_md_kw
+    return adjusted.clip(lower=0.0)
+
+
+def forecast_monthly_md_corrected_profile(
+    target_frame: pd.DataFrame,
+    months: int = 1,
+    reference_frames: Iterable[pd.DataFrame] | None = None,
+    max_training_rows: int = 400,
+    correction_policy: MonthlyMDCorrectionPolicy | None = None,
+    growth_rate_pct: float = 0.0,
+    ev_load_kw: float = 0.0,
+    ev_start_hour: int = 18,
+    ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
+) -> pd.DataFrame:
+    if months not in {1, 2, 3}:
+        raise ValueError("months must be 1, 2, or 3")
+    if target_frame.empty:
+        raise ValueError("Target frame is empty")
+    if len(target_frame) < LONG_HORIZON_MIN_HISTORY + 48:
+        raise ValueError("Not enough history for monthly MD correction model development")
+
+    policy = correction_policy or MonthlyMDCorrectionPolicy()
+    ordered = target_frame.sort_values("interval_end").reset_index(drop=True).copy()
+    training_frames = list(reference_frames or []) + [ordered]
+    training_rows, feature_columns = _build_monthly_md_correction_training_rows(
+        training_frames,
+        max_training_rows=max_training_rows,
+    )
+    if len(training_rows) < 4:
+        raise ValueError("Not enough monthly MD correction training rows")
+
+    models = _fit_monthly_md_correction_models(training_rows, feature_columns)
+    adjusted = forecast_monthly_planning_profile(
+        ordered,
+        months=months,
+        growth_rate_pct=growth_rate_pct,
+        ev_load_kw=ev_load_kw,
+        ev_start_hour=ev_start_hour,
+        ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
+    ).reset_index(drop=True)
+    adjusted["ml_monthly_md_target_kw"] = 0.0
+    adjusted["ml_monthly_md_correction_applied"] = False
+    adjusted["ml_monthly_md_correction_kw"] = 0.0
+
+    for _, indices in adjusted.groupby("planning_month", sort=False).groups.items():
+        month_indices = list(indices)
+        month_forecast = adjusted.loc[month_indices].copy()
+        features = _monthly_md_correction_features(ordered, month_forecast)
+        feature_frame = pd.DataFrame([features], columns=feature_columns).fillna(0.0)
+
+        base_p50_md = float(month_forecast["p50_forecast_kw"].max())
+        base_p90_md = float(month_forecast["p90_md_risk_kw"].max())
+        base_p95_md = float(month_forecast["p95_stress_kw"].max())
+        p50_ratio = float(np.clip(models["p50"].predict(feature_frame)[0], policy.p50_min_ratio, policy.p50_max_ratio))
+        p90_ratio = float(np.clip(models["p90"].predict(feature_frame)[0], policy.p90_min_ratio, policy.p90_max_ratio))
+        p95_ratio = float(np.clip(models["p95"].predict(feature_frame)[0], policy.p95_min_ratio, policy.p95_max_ratio))
+
+        target_p50_md = base_p50_md + policy.p50_correction_strength * ((base_p50_md * p50_ratio) - base_p50_md)
+        target_p90_md = max(
+            target_p50_md,
+            base_p90_md + policy.risk_correction_strength * ((base_p90_md * p90_ratio) - base_p90_md),
+        )
+        target_p95_md = max(
+            target_p90_md,
+            base_p95_md + policy.risk_correction_strength * ((base_p95_md * p95_ratio) - base_p95_md),
+        )
+
+        timing_scores = adjusted.loc[month_indices, "peak_risk_overlay_score"].astype(float)
+        original_p50 = adjusted.loc[month_indices, "p50_forecast_kw"].astype(float)
+        corrected_p50 = _localized_monthly_md_correction(
+            original_p50,
+            target_p50_md,
+            timing_scores,
+            active_quantile=policy.active_quantile,
+        )
+        adjusted.loc[month_indices, "forecast_kw_import"] = corrected_p50.to_numpy()
+        adjusted.loc[month_indices, "p50_forecast_kw"] = corrected_p50.to_numpy()
+        adjusted.loc[month_indices, "ml_monthly_md_target_kw"] = target_p50_md
+        adjusted.loc[month_indices, "ml_monthly_md_correction_kw"] = (corrected_p50 - original_p50).to_numpy()
+        adjusted.loc[month_indices, "ml_monthly_md_correction_applied"] = (
+            (corrected_p50 - original_p50).abs() > 1.0e-9
+        ).to_numpy()
+
+        corrected_p90 = _localized_monthly_md_correction(
+            month_forecast["p90_md_risk_kw"].astype(float),
+            target_p90_md,
+            timing_scores,
+            active_quantile=policy.active_quantile,
+        )
+        adjusted.loc[month_indices, "p90_md_risk_kw"] = np.maximum(
+            corrected_p90.astype(float).to_numpy(),
+            adjusted.loc[month_indices, "p50_forecast_kw"].astype(float).to_numpy(),
+        )
+        adjusted.loc[month_indices, "calibrated_p90_md_risk_kw"] = np.maximum(
+            adjusted.loc[month_indices, "p90_md_risk_kw"].astype(float).to_numpy(),
+            month_forecast["calibrated_p90_md_risk_kw"].astype(float).to_numpy(),
+        )
+
+        corrected_p95 = _localized_monthly_md_correction(
+            month_forecast["p95_stress_kw"].astype(float),
+            target_p95_md,
+            timing_scores,
+            active_quantile=policy.active_quantile,
+        )
+        adjusted.loc[month_indices, "p95_stress_kw"] = np.maximum(
+            corrected_p95.astype(float).to_numpy(),
+            adjusted.loc[month_indices, "calibrated_p90_md_risk_kw"].astype(float).to_numpy(),
+        )
+        adjusted.loc[month_indices, "calibrated_p95_stress_kw"] = np.maximum(
+            adjusted.loc[month_indices, "p95_stress_kw"].astype(float).to_numpy(),
+            month_forecast["calibrated_p95_stress_kw"].astype(float).to_numpy(),
+        )
+
+    adjusted["md_risk_envelope_kw"] = adjusted["calibrated_p95_stress_kw"]
+    adjusted["custom_risk_envelope_kw"] = adjusted["md_risk_envelope_kw"]
+    adjusted["planning_method"] = "monthly_md_correction_gradient_boosting"
+    return _add_planning_peak_flags(adjusted)
+
+
 def _md_risk_model_features(history_frame: pd.DataFrame, baseline_forecast: pd.DataFrame) -> dict[str, float]:
     ordered = history_frame.sort_values("interval_end").reset_index(drop=True).copy()
     recent = ordered.tail(min(len(ordered), 56 * 48)).copy()
@@ -1810,6 +2125,7 @@ def forecast_ml_md_risk_profile(
     ev_load_kw: float = 0.0,
     ev_start_hour: int = 18,
     ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
 ) -> pd.DataFrame:
     if months not in {1, 2, 3}:
         raise ValueError("months must be 1, 2, or 3")
@@ -1827,6 +2143,7 @@ def forecast_ml_md_risk_profile(
         ev_load_kw=ev_load_kw,
         ev_start_hour=ev_start_hour,
         ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
     ).reset_index(drop=True)
     training_frames = list(reference_frames or []) + [ordered]
     training_rows, feature_columns = _build_md_risk_training_rows(
@@ -1910,6 +2227,77 @@ def forecast_ml_md_risk_profile(
     adjusted["md_risk_envelope_kw"] = adjusted["calibrated_p95_stress_kw"]
     adjusted["custom_risk_envelope_kw"] = adjusted["md_risk_envelope_kw"]
     adjusted["planning_method"] = "ml_md_risk_gradient_boosting"
+    return _add_planning_peak_flags(adjusted)
+
+
+def forecast_md_ensemble_profile(
+    target_frame: pd.DataFrame,
+    months: int = 1,
+    reference_frames: Iterable[pd.DataFrame] | None = None,
+    max_training_rows: int = 400,
+    correction_policy: MonthlyMDCorrectionPolicy | None = None,
+    uplift_policy: MdRiskUpliftPolicy | None = None,
+    growth_rate_pct: float = 0.0,
+    ev_load_kw: float = 0.0,
+    ev_start_hour: int = 18,
+    ev_end_hour: int = 23,
+    existing_pv_kwp: float | None = None,
+) -> pd.DataFrame:
+    ensemble_correction_policy = correction_policy or MonthlyMDCorrectionPolicy(p50_correction_strength=0.20)
+    reference_frame_list = list(reference_frames or [])
+    risk_forecast = forecast_ml_md_risk_profile(
+        target_frame,
+        months=months,
+        reference_frames=reference_frame_list,
+        max_training_rows=max_training_rows,
+        uplift_policy=uplift_policy,
+        growth_rate_pct=growth_rate_pct,
+        ev_load_kw=ev_load_kw,
+        ev_start_hour=ev_start_hour,
+        ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
+    ).reset_index(drop=True)
+    p50_forecast = forecast_monthly_md_corrected_profile(
+        target_frame,
+        months=months,
+        reference_frames=reference_frame_list,
+        max_training_rows=max_training_rows,
+        correction_policy=ensemble_correction_policy,
+        growth_rate_pct=growth_rate_pct,
+        ev_load_kw=ev_load_kw,
+        ev_start_hour=ev_start_hour,
+        ev_end_hour=ev_end_hour,
+        existing_pv_kwp=existing_pv_kwp,
+    ).reset_index(drop=True)
+
+    adjusted = risk_forecast.copy()
+    adjusted["forecast_kw_import"] = p50_forecast["forecast_kw_import"].astype(float).to_numpy()
+    adjusted["p50_forecast_kw"] = p50_forecast["p50_forecast_kw"].astype(float).to_numpy()
+    for column in (
+        "ml_monthly_md_target_kw",
+        "ml_monthly_md_correction_applied",
+        "ml_monthly_md_correction_kw",
+    ):
+        if column in p50_forecast.columns:
+            adjusted[column] = p50_forecast[column].to_numpy()
+
+    p50_values = adjusted["p50_forecast_kw"].astype(float).to_numpy()
+    adjusted["p90_md_risk_kw"] = np.maximum(adjusted["p90_md_risk_kw"].astype(float).to_numpy(), p50_values)
+    adjusted["calibrated_p90_md_risk_kw"] = np.maximum(
+        adjusted["calibrated_p90_md_risk_kw"].astype(float).to_numpy(),
+        adjusted["p90_md_risk_kw"].astype(float).to_numpy(),
+    )
+    adjusted["p95_stress_kw"] = np.maximum(
+        adjusted["p95_stress_kw"].astype(float).to_numpy(),
+        adjusted["calibrated_p90_md_risk_kw"].astype(float).to_numpy(),
+    )
+    adjusted["calibrated_p95_stress_kw"] = np.maximum(
+        adjusted["calibrated_p95_stress_kw"].astype(float).to_numpy(),
+        adjusted["p95_stress_kw"].astype(float).to_numpy(),
+    )
+    adjusted["md_risk_envelope_kw"] = adjusted["calibrated_p95_stress_kw"]
+    adjusted["custom_risk_envelope_kw"] = adjusted["md_risk_envelope_kw"]
+    adjusted["planning_method"] = "md_ensemble_gradient_boosting"
     return _add_planning_peak_flags(adjusted)
 
 

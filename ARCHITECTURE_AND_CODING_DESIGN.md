@@ -76,7 +76,7 @@ The current repository layout is:
 - `trex_energy/forecasting.py`: also includes a backend-only full ML planning LightGBM candidate that predicts p50, p90, and p95 residuals over planner-aware features; it is model-development only and raises on short history instead of silently falling back
 - `trex_energy/forecasting.py`: also includes `forecast_gated_ml_planning_profile` as a backend-only experiment; it keeps the ML MD-risk p90/p95 behavior and applies bounded p50 correction only to high-confidence intervals
 - `trex_energy/forecasting.py`: also includes `forecast_monthly_md_corrected_profile` as a backend-only experiment; it predicts next-window monthly MD ratios and localizes p50/p90/p95 corrections to forecast peak-risk windows instead of changing the whole interval path
-- `trex_energy/forecasting.py`: also includes `forecast_md_ensemble_profile` as a backend-only separated-head experiment; it takes p50 from the monthly MD correction candidate and p90/p95 from the ML MD-risk candidate, then reconciles ordering
+- `trex_energy/forecasting.py`: also includes `forecast_md_ensemble_profile` as the promoted separated-head app model; it takes p50 from the monthly MD correction candidate and p90/p95 from the ML MD-risk candidate, then reconciles ordering
 - `trex_energy/tariff.py`: bill-component calculations for MD and energy charges
 - `trex_energy/optimization.py`: deterministic scenario evaluation for flexible shifting, battery, and clear-sky sine solar
 - `trex_energy/reporting.py`: CSV export helpers, executive summary text, and cross-site comparison summaries
@@ -122,8 +122,8 @@ Responsibilities:
 - backtest monthly planning by comparing simulated 30-day MD against actual 30-day MD and reporting envelope coverage
 - keep full ML planning candidates separate from the production planner until they improve MD planning metrics without materially worsening normal interval forecast error
 - keep monthly MD correction candidates separate from the production planner until p50 MD gains are large enough to justify any interval-error tradeoff
-- keep separated-head MD ensemble candidates separate from the production planner until their p50 MD gain justifies any RMSE/WAPE regression and local runtime remains acceptable
-- route FastAPI analysis through the stable monthly planner while keeping ML candidates available for backend validation only
+- route FastAPI analysis through the promoted separated-head MD ensemble when enough history/model support is available
+- fall back to the stable recent-pattern monthly planner when the promoted ensemble cannot train or score safely for an upload
 
 ### Optimization
 Responsibilities:
@@ -147,9 +147,18 @@ Responsibilities:
 - render upload validation summaries
 - render site load profiles and heatmaps
 - render forecast and peak-risk views
-- render the Site Profile Peak Risk Timeline from `forecast.preview`
-- render the Site Profile Solar Impact Comparison from optimized schedule solar offsets and active energy-rate assumptions
+- keep Site Profile scoped to historical load and site-health metrics rather than future risk/action content
+- derive Site Profile observed peak-event, load-pattern, and compact site-fact summaries from `load_history`, `profile`, `metadata`, and `validation`, without requiring a new backend endpoint
+- render future risk/action content only in Forecast & Risk
+- render Forecast & Risk risk periods as ranked Top Risk Windows from the shared forecast helper rather than as a block timeline
+- derive Forecast & Risk right-rail response items from the selected forecast window plus the active optimization target, while leaving financial scenario comparison in Optimization
+- use an independent left-content/right-rail Forecast & Risk layout so the demand chart and risk list stack naturally without being blocked by the action cards' height
+- format Forecast & Risk peak-window labels with deterministic date and time context, and expose a standby mitigation state when no immediate kW reduction is needed
+- rank Forecast & Risk critical windows by forecast kW intensity before risk-score tie-breaks, avoiding contradictions between the Window Peak card and Top Risk Windows list
+- select Forecast & Risk chart sub-windows from the start of `forecast.points` so shorter views preview the beginning of the future planning horizon consistently with the month view
+- build Forecast & Risk month-scale window options from `analysis.assumptions.planning_months`, so 2-month and 3-month analyses expose 60-day and 90-day forecast scopes
 - render optimization comparisons and executive-summary outputs
+- keep the sidebar application shell free of hardcoded user-profile placeholders until real authenticated profile data is available
 - keep Optimization focused on the active analysis, with judge-facing decision copy and editable assumptions instead of site/model comparison views
 
 ### React State Ownership
@@ -207,6 +216,7 @@ Responsibilities:
 ### Forecasting Strategy
 - Use pooled multi-site forecasting as the default approach.
 - Use recent weekday/weekend interval-shape simulation as the production monthly MD planning approach for 1-3 month horizons.
+- Use the separated-head MD ensemble as the preferred FastAPI forecast path; it reuses the stable recent-pattern simulation as its baseline and fallback.
 - Treat p50 as the expected planning profile, p90 as the conservative MD-risk profile, and p95 as the stress profile.
 - Apply a recent observed MD floor to calibrated p90/p95 envelopes, with `md_risk_envelope_kw` pointing to the calibrated p95 stress profile for conservative optimization.
 - When enough rolling monthly folds exist, fit a lightweight trained MD-risk calibrator over historical p95 monthly MD misses and apply its conservative uplift/intercept to `md_risk_envelope_kw`; if calibration cannot fit, keep the statistical recent-pattern envelope unchanged.
@@ -228,7 +238,7 @@ Responsibilities:
 - Candidate-level diagnostics should compare value-model candidates by regime before promotion. The broader non-solar night site-peak floor option remains disabled unless explicitly tested because the first rerun regressed overall MD error.
 - Direct-horizon boosted candidates may be benchmarked in the notebook, but the first pooled scikit-learn HGB candidate is rejected and should not be promoted. Future boosted experiments should change the training strategy or dependency choice rather than tuning the same pooled HGB loop.
 - LightGBM direct-horizon quantile candidates may be explored only through capped benchmark modes. The first tiny E-only proof showed fast app-like fitting when capped, but unstable p50/p90 behavior, so it is not a production forecast strategy.
-- The production app must not run LOSO or rolling-origin benchmark retraining during upload. Any promoted heavier model should either load a pre-trained artifact or train once with explicit row/model caps.
+- The production app must not run LOSO or rolling-origin benchmark retraining during upload. The promoted MD ensemble trains once per analysis with capped training rows and falls back to the stable planner if it cannot run.
 - Prioritize explainability and stable performance over maximum model complexity.
 
 ### Optimization Strategy
@@ -301,7 +311,18 @@ The initial implementation slice currently covers:
 - The Optimization tab can edit tariff, CAPEX, growth, EV-load, and planning-month assumptions, then rerun the active analysis from the decision view.
 - FastAPI optimization responses include `explanation` and `sensitivity` objects generated by backend reporting and optimization helpers.
 - React loading/error UX includes upload, normalize, forecast, and optimize progress steps plus clearer API/workbook error cards
-- Site Profile now derives local display summaries for peak-risk timeline and solar impact from the existing analysis payload; no new backend endpoint is required.
+- Site Profile derives historical display summaries from the existing `load_history`, `profile`, `metadata`, and `validation` payloads; no new backend endpoint is required.
+- Site Profile no longer duplicates forecast risk/action content; it now shows historical load, observed MD, observed peak events, and one unified Site Operating Pattern section with three pattern summaries plus compact site facts.
+- Forecast & Risk now renders ranked Top Risk Windows from the shared `buildTopRiskWindowItems` helper, replacing the noisy block-grid timeline with time, level, intensity, and action rows.
+- Forecast & Risk now derives a window-specific Recommended Response checklist and Immediate Mitigation card from forecast risk, selected window peak, and the optimized MD target, without duplicating Optimization savings/payback content.
+- Forecast & Risk uses an independent two-column layout, date-aware Window Peak labels, and a no-immediate-reduction mitigation state for selected windows below the MD target.
+- Forecast & Risk Top Risk Windows now ranks critical windows by peak kW before risk-score tie-breaks so MD-intensity ordering matches the Window Peak story.
+- Forecast & Risk uses the shared `selectForecastWindowPoints` helper so 12h/24h/48h chart windows start at the first future forecast interval instead of tail-slicing the monthly planning horizon.
+- Forecast & Risk now builds its full-horizon dropdown options and Top Risk Windows outlook label from active planning months rather than hardcoding a 30-day maximum.
+- FastAPI now tries `forecast_md_ensemble_profile` for analysis forecasts before falling back to `forecast_monthly_planning_profile`; bundled runs pass the other bundled workbook frames as reference training data.
+- `forecast_monthly_planning_profile` reconstructs `forecast_gross_load_kw` for solar sites using the shared clear-sky sine solar factor and resolved existing PV capacity, then derives `forecast_kw_import` and MD-risk fields on the utility-facing grid-import basis.
+- `evaluate_site_scenarios` keeps baseline bills and MD on `baseline_kw_import`, while using `forecast_gross_load_kw` plus explicit existing/new solar offsets for optimization scheduling when gross-load fields are present.
+- FastAPI analysis responses include `load_history` for historical charting. Site Profile consumes `load_history`, while Forecast & Risk consumes `forecast.points` so historical and future graph windows stay separate.
 
 The following major areas are still planned but not yet implemented:
 - Supabase persistence for saved analyses, if needed after the local app stabilizes

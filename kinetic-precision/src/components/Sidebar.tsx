@@ -20,7 +20,7 @@ export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarPr
   return (
     <aside id="sidebar" className="h-screen w-64 fixed left-0 top-0 flex flex-col py-6 bg-slate-50 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
       <div className="px-6 mb-10">
-        <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-headline">Kinetic Precision</h1>
+        <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-headline">PeakLogic</h1>
         <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mt-1">Energy Curator</p>
       </div>
 
@@ -67,19 +67,6 @@ export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarPr
           <Settings size={20} />
           <span className="text-sm font-medium">Settings</span>
         </button>
-        <div className="flex items-center gap-3 px-4 py-4 mt-4 border-t border-slate-200 dark:border-slate-800">
-          <div className="w-8 h-8 rounded-full bg-primary-fixed flex-shrink-0 overflow-hidden border border-outline-variant/30">
-            <img 
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" 
-              alt="Alex Sterling" 
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">Alex Sterling</p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Admin Access</p>
-          </div>
-        </div>
       </div>
     </aside>
   );

@@ -66,6 +66,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Hardened bundled workbook discovery so temporary Excel `~$` lock files are ignored before ingestion.
 - Added Site Profile Peak Risk Timeline and Solar Impact Comparison cards based on active forecast and optimized schedule payloads.
 - Removed the duplicate Site Profile risk/action sections after the Forecast & Risk page became the owner of future peak-risk guidance.
+- Added Site Profile observed historical peak events and load-pattern summaries so the page remains useful without duplicating Forecast & Risk.
 - Changed tariff simulation to charge MD once per 30-day planning month.
 - Replaced the solar sizing shape with a clear-sky sine profile.
 - Added backend-only `forecast_full_ml_planning_profile`, a LightGBM full planning candidate that changes p50 and predicts p90/p95 risk paths while keeping all model details out of the UI.
@@ -161,6 +162,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 ## Recent Changes
 - 2026-05-19: Promoted `forecast_md_ensemble_profile` into the FastAPI analysis path. Bundled analyses now train with other bundled workbooks as reference frames when possible, return `planning_method` as `md_ensemble_gradient_boosting`, and fall back to `forecast_monthly_planning_profile` if the ensemble cannot run.
 - 2026-05-19: Cleaned up Site Profile and Forecast & Risk page ownership. Site Profile now focuses on historical load and site-health metrics, while Forecast & Risk replaces the duplicate block timeline with a ranked Top Risk Windows list.
+- 2026-05-19: Filled out Site Profile with top observed historical peak timestamps plus weekday/weekend, daytime/night, and peak-to-average summaries, reducing empty page space while keeping future risk guidance only in Forecast & Risk.
 - 2026-05-18: Added gross-load forecasting support for solar sites while preserving grid-import MD/billing semantics. Site 1 and Site 4 now resolve to the competition-provided `944.880 kWp` installed PV fallback, and the Forecast & Risk chart can toggle between Grid import and Gross load.
 - 2026-05-18: Fixed Forecast & Risk sub-window selection so 12h/24h/48h views start from the first future forecast interval, matching the monthly planning horizon start instead of showing the final hours of the month.
 - 2026-05-18: Split chart data sources so Site Profile uses historical `load_history` from the dataset and Forecast & Risk uses future forecast points for predicted load and peak-risk windows.

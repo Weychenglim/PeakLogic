@@ -1,4 +1,6 @@
 import {
+  buildLoadPatternSummary,
+  buildObservedPeakEvents,
   buildPeakTimelineItems,
   buildSiteLoadChartPoints,
 } from './SiteProfile';
@@ -31,3 +33,27 @@ export const siteLoadContract = buildSiteLoadChartPoints({
     },
   ],
 } as AnalysisResult);
+
+const historicalAnalysis = {
+  profile: {
+    peak_kw_import: 300,
+    avg_kw_import: 100,
+    weekday_avg_kw_import: 120,
+    weekend_avg_kw_import: 70,
+  },
+  load_history: [
+    { interval_end: '2025-01-01T01:00:00', kw_import: 90 },
+    { interval_end: '2025-01-01T12:00:00', kw_import: 200 },
+    { interval_end: '2025-01-02T14:00:00', kw_import: 300 },
+    { interval_end: '2025-01-03T22:00:00', kw_import: 150 },
+  ],
+} as AnalysisResult;
+
+export const observedPeakEventsContract = buildObservedPeakEvents(historicalAnalysis);
+export const loadPatternSummaryContract = buildLoadPatternSummary(historicalAnalysis);
+
+if (observedPeakEventsContract.length !== 3) throw new Error('Expected top three observed peaks');
+if (observedPeakEventsContract[0].load !== 300) throw new Error('Expected observed peaks sorted by load');
+if (loadPatternSummaryContract.daytimeAvg !== 250) throw new Error('Expected daytime average from daylight history');
+if (loadPatternSummaryContract.nightAvg !== 120) throw new Error('Expected night average from night history');
+if (loadPatternSummaryContract.peakToAverageRatio !== 3) throw new Error('Expected peak-to-average ratio');

@@ -38,7 +38,7 @@ export function AuthPage() {
             <span className="text-[10px] font-black uppercase tracking-widest">Secure Access</span>
           </div>
           <h1 className="mt-3 text-2xl font-black text-on-surface font-headline">
-            {mode === 'signup' ? 'Create your TREX workspace' : 'Welcome back to Kinetic Precision'}
+            {mode === 'signup' ? 'Create your TREX workspace' : 'Welcome back to PeakLogic'}
           </h1>
           <p className="mt-2 text-sm text-on-surface-variant">
             {mode === 'signup'

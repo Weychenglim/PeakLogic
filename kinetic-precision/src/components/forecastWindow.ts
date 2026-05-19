@@ -27,6 +27,18 @@ export type PeakTimelineItem = {
   alertCount: number;
 };
 
+export type TopRiskWindowItem = {
+  key: string;
+  rank: number;
+  timeWindow: string;
+  day: string;
+  label: string;
+  level: 'critical' | 'risk';
+  peakLoad: number;
+  score: number;
+  action: string;
+};
+
 export function forecastWindowPoints(analysis: AnalysisResult | null): ForecastPoint[] {
   const points = analysis?.forecast.points ?? [];
   return points.length > 0 ? points : analysis?.forecast.preview ?? [];
@@ -103,6 +115,62 @@ function timelineKey(point: ForecastPoint): string {
   return new Date(point.interval_end).toLocaleDateString([], { month: 'short', day: '2-digit' });
 }
 
+function riskWindowLabel(point: ForecastPoint): string {
+  const hour = new Date(point.interval_end).getHours();
+  if (hour < 10) return 'Morning ramp';
+  if (hour < 17) return 'Operational peak';
+  return 'Evening MD risk';
+}
+
+function riskWindowAction(point: ForecastPoint): string {
+  const hour = new Date(point.interval_end).getHours();
+  if (hour >= 18 || hour < 6) return 'Battery discharge';
+  if (hour >= 10 && hour < 17) return 'Shift flexible load';
+  return 'Monitor MD threshold';
+}
+
+function formatRiskTimeWindow(point: ForecastPoint): string {
+  const start = new Date(point.interval_end);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const format = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${format(start)} - ${format(end)}`;
+}
+
+export function buildTopRiskWindowItems(analysis: AnalysisResult, limit = 4): TopRiskWindowItem[] {
+  const seen = new Set<string>();
+  return forecastWindowPoints(analysis)
+    .map(point => {
+      const score = Number(point.peak_risk_overlay_score ?? point.peak_risk_score ?? 0);
+      return {
+        point,
+        score,
+        load: forecastLoad(point),
+        isCritical: Boolean(point.is_peak_risk_overlay),
+      };
+    })
+    .filter(item => item.isCritical || item.score > 0.65)
+    .sort((a, b) => Number(b.isCritical) - Number(a.isCritical) || b.load - a.load || b.score - a.score)
+    .filter(item => {
+      const date = new Date(item.point.interval_end);
+      const key = `${date.toDateString()}-${date.getHours()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit)
+    .map((item, index) => ({
+      key: `${item.point.interval_end}-${index}`,
+      rank: index + 1,
+      timeWindow: formatRiskTimeWindow(item.point),
+      day: new Date(item.point.interval_end).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      label: riskWindowLabel(item.point),
+      level: item.isCritical ? 'critical' : 'risk',
+      peakLoad: item.load,
+      score: item.score,
+      action: riskWindowAction(item.point),
+    }));
+}
+
 export function buildPeakTimelineItems(analysis: AnalysisResult): PeakTimelineItem[] {
   const buckets = new Map<string, PeakTimelineItem>();
 
@@ -114,7 +182,7 @@ export function buildPeakTimelineItems(analysis: AnalysisResult): PeakTimelineIt
     const isRisk = Number(point.peak_risk_overlay_score ?? point.peak_risk_score ?? 0) > 0.65;
     const level: PeakTimelineItem['level'] = isCritical ? 'critical' : isRisk ? 'risk' : 'normal';
     const currentLoad = forecastLoad(point);
-    const label = hour < 10 ? 'Morning ramp' : hour < 17 ? 'Operational peak' : 'Evening MD risk';
+    const label = riskWindowLabel(point);
 
     if (!existing) {
       buckets.set(key, {

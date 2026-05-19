@@ -82,7 +82,10 @@ The app must:
 - expose editable planning, tariff, CAPEX, growth, and EV-load assumptions directly in the Optimization tab, with an Apply action that reruns the active workbook or retained upload
 - explain Optimization results with judge-facing "what changed", "why this scenario", and "savings sensitivity" copy without adding site-by-site or model-comparison views
 - return backend-generated Optimization explanation, planning-basis labels, confidence flags, and active-analysis +/-10% tariff/CAPEX sensitivity rows for the current workbook or upload
-- show a Peak Risk Timeline and Solar Impact Comparison in Site Profile using the active analysis rather than site-by-site/model comparison
+- keep Site Profile focused on historical load shape, observed MD, solar metadata, interval counts, and data-quality status
+- show top observed historical peak events and a unified Site Operating Pattern summary in Site Profile, combining weekday versus weekend, daytime versus night, peak-to-average ratio, interval count, solar capacity, and data-quality gaps
+- keep future peak-risk windows and operator response guidance in Forecast & Risk only
+- keep Forecast & Risk operator guidance focused on immediate peak-window mitigation, not full savings, CAPEX, payback, or scenario comparison
 - identify likely peak demand periods and MD-risk intervals
 - simulate flexible load shifting using an aggregate flexible-load-block model
 - simulate battery dispatch for peak shaving and optional energy arbitrage
@@ -90,6 +93,7 @@ The app must:
 - estimate baseline versus optimized electricity cost
 - estimate MD reduction, peak reduction, and simple payback
 - provide a dashboard with site profiling, forecasting, optimization, and executive-summary views
+- avoid hardcoded dummy identities or stock profile avatars in the application shell unless authentication/user-profile data is actually wired
 - provide the dashboard through a local React/Vite frontend backed by a FastAPI API over the existing Python analysis modules
 - show staged analysis progress and clear API/workbook error cards during local React/FastAPI processing
 - export normalized data and scenario outputs for analysis or presentation
@@ -99,12 +103,18 @@ Current implementation note:
 - The React/FastAPI path now accepts editable tariff, CAPEX, and planning-month assumptions, and the forecast payload includes a separate peak-risk overlay score for high MD-risk chart markers.
 - The Optimization tab now treats assumptions as editable decision inputs rather than locked display values.
 - The backend now owns the structured Optimization recommendation explanation and sensitivity payload consumed by the React UI.
-- The Site Profile dashboard now includes peak-risk timeline and solar-impact cards based on existing forecast and optimized schedule payloads.
+- The Site Profile dashboard now emphasizes historical site diagnostics: observed maximum demand, top observed peak timestamps, and a unified operating-pattern section that pairs three load-pattern summaries with compact site facts.
 - The Forecast & Risk dashboard must open from the sidebar after an analysis is available and render its demand chart, peak window, recommendation cards, and peak-risk timeline without a route reset or runtime crash.
 - Solar-site forecasting must expose both gross facility load and utility-facing grid import. Gross load reconstructs demand by adding estimated existing solar output to `kw_import`, while MD, peak-risk, tariff, billing, savings, and executive-summary outputs continue to use grid-import kW.
 - Bundled Site 1 and bundled Site 4 use `944.880 kWp` as installed existing PV when no user override is supplied. Future uploaded solar datasets with missing PV capacity default to `0 kWp` unless the user enters a value.
 - Site Profile charts should show historical dataset load, while Forecast & Risk charts should show future forecast points and predicted peak-risk windows.
 - Forecast & Risk sub-window controls such as 12h, 24h, and 48h should preview from the first future forecast interval, matching the start of the active monthly planning horizon rather than jumping to the end of the month.
+- Forecast & Risk full-horizon window controls must reflect the active planning assumption: 1M should expose 30 days, 2M should expose 60 days, and 3M should expose 90 days.
+- Forecast & Risk should present high-risk periods as a ranked Top Risk Windows list instead of a dense block timeline, so each row shows the forecast window, risk level, intensity, and recommended action.
+- Forecast & Risk should show a window-specific Recommended Response checklist and an Immediate Mitigation summary that explain the kW relief target, MD target, storage role, and solar context for the active forecast window.
+- Forecast & Risk should avoid unfriendly zero-reduction messaging; when the selected window is below the optimized MD target, the mitigation card should show a monitor/standby state instead of "reduce by 0 kW".
+- Forecast & Risk should display Window Peak with date and time context for every selected window, especially 7-day and 1/2/3-month views.
+- Forecast & Risk Top Risk Windows should rank critical MD-risk windows by predicted kW intensity before score tie-breaks, so the first row aligns with the highest-risk demand peak users see in the selected planning view.
 - FastAPI bundled and upload analyses should try the promoted `md_ensemble_gradient_boosting` forecast first. Bundled analyses may use the other bundled workbooks as reference frames; all analyses must fall back to the stable recent-pattern planner when the ensemble is unavailable.
 
 ## Non-Functional Requirements

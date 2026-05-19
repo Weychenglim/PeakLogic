@@ -128,7 +128,7 @@ def build_optimization_explanation(
     return {
         "planning_basis_label": basis_label,
         "planning_basis_description": (
-            "TREX sizes the recommendation against high-demand periods so the selected plan is judged on peak-charge protection, "
+            "PeakLogic sizes the recommendation against high-demand periods so the selected plan is judged on peak-charge protection, "
             "not only average forecast accuracy."
         ),
         "what_changed": (

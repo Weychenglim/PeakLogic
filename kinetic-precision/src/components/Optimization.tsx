@@ -16,6 +16,13 @@ interface OptimizationProps {
   canApplyAssumptions: boolean;
 }
 
+const PV_MODULE_NAME = 'Trina Vertex N 590-620W';
+const INVERTER_NAME = 'Sigen Hybrid Inverter Gen 2';
+const PV_MODULE_WP = 620;
+const PV_MODULE_AREA_SQM = 2.382 * 1.134;
+const PV_MODULE_WEIGHT_KG = 33;
+const MAX_PV_KWP_PER_INVERTER = 24;
+
 function scheduleData(analysis: AnalysisResult | null) {
   return (analysis?.optimization.schedule_preview ?? []).filter((_, index) => index % 8 === 0).map(point => ({
     time: new Date(point.interval_end).toLocaleString([], { hour: '2-digit', minute: '2-digit' }),
@@ -54,9 +61,18 @@ function scenarioSystem(scenario: AnalysisResult['optimization']['best_scenario'
   const parts = [
     `${scenario.battery_kw.toFixed(0)} kW battery`,
     `${scenario.battery_kwh.toFixed(0)} kWh storage`,
-    `${scenario.solar_kwp.toFixed(0)} kWp solar`,
+    `${scenario.solar_kwp.toFixed(0)} kWp ${PV_MODULE_NAME} PV`,
   ].filter(part => !part.startsWith('0 '));
   return parts.join(' / ');
+}
+
+function pvFeasibility(solarKwp: number) {
+  if (solarKwp <= 0) return null;
+  const modules = Math.ceil((solarKwp * 1000) / PV_MODULE_WP);
+  const areaSqm = modules * PV_MODULE_AREA_SQM;
+  const weightTonnes = (modules * PV_MODULE_WEIGHT_KG) / 1000;
+  const inverters = Math.ceil(solarKwp / MAX_PV_KWP_PER_INVERTER);
+  return { modules, areaSqm, weightTonnes, inverters };
 }
 
 function uniqueScenarioHighlights(analysis: AnalysisResult) {
@@ -208,6 +224,7 @@ export function Optimization({
   const planningLabel = explanation.planning_basis_label || planningBasisLabel(best.risk_basis);
   const periodMonths = Number(best.savings_period_months ?? analysisAssumptions.planning_months ?? 1);
   const scenarioHighlights = uniqueScenarioHighlights(analysis);
+  const pvPlan = pvFeasibility(best.solar_kwp);
   const updateAssumption = (key: keyof PlanningAssumptions, value: number) => {
     onAssumptionsChange({ ...assumptions, [key]: value });
   };
@@ -220,7 +237,7 @@ export function Optimization({
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-primary">Recommended plan</p>
               <h2 className="mt-2 font-headline text-3xl font-black tracking-tight text-on-surface">
-                {best.battery_kw.toFixed(0)} kW battery, {best.battery_kwh.toFixed(0)} kWh storage, {best.solar_kwp.toFixed(0)} kWp solar
+                {scenarioSystem(best)}
               </h2>
             </div>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-primary">
@@ -246,7 +263,7 @@ export function Optimization({
           <div className="mt-5 rounded-lg bg-secondary-container/45 px-4 py-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-on-secondary-fixed/70">Why this one</p>
             <p className="mt-2 text-sm font-semibold leading-relaxed text-on-secondary-fixed">
-              Best savings in the tested set with {formatRm(scenarioCapex(best))} CAPEX.
+              Best savings in the tested set with {formatRm(scenarioCapex(best))} investment.
             </p>
           </div>
 
@@ -482,17 +499,21 @@ export function Optimization({
             <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Inputs locked</p>
             <p className="mt-2 font-headline text-xl font-black text-on-surface">{periodMonths}M planning basis</p>
             <p className="mt-1 text-sm font-semibold text-on-surface-variant">
-              Confirm tariff, CAPEX, growth, and EV assumptions with the editable inputs above.
+              Confirm tariff, investment, growth, and EV assumptions with the editable inputs above.
             </p>
           </div>
           <div className="rounded-lg bg-surface-container-low p-5">
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed text-primary">
               <WalletCards size={19} />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Evidence ready</p>
-            <p className="mt-2 font-headline text-xl font-black text-on-surface">Show the comparison</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">PV feasibility</p>
+            <p className="mt-2 font-headline text-xl font-black text-on-surface">
+              {pvPlan ? `${pvPlan.modules} modules / ${pvPlan.inverters} inverters` : 'No new PV selected'}
+            </p>
             <p className="mt-1 text-sm font-semibold text-on-surface-variant">
-              Use Options Considered and Peak Reduction Preview to explain why this plan was selected.
+              {pvPlan
+                ? `Allow for about ${pvPlan.areaSqm.toFixed(0)} square meters of PV module area and ${pvPlan.weightTonnes.toFixed(1)} tonnes of module weight, based on ${PV_MODULE_NAME} and ${INVERTER_NAME} specifications.`
+                : `No ${PV_MODULE_NAME} layout check is needed for this selected option.`}
             </p>
           </div>
         </div>

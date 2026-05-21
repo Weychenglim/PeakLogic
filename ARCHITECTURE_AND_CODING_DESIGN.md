@@ -164,6 +164,7 @@ Responsibilities:
 - render optimization comparisons and executive-summary outputs
 - render a compact Optimization options-considered comparison for recommended, fastest-payback, maximum-peak-cut, and lowest-investment profitable alternatives when those alternatives are distinct
 - render a concise Optimization decision checklist covering data readiness, locked assumptions, and presentation evidence instead of exposing the full sensitivity table in the main page flow
+- derive Optimization PV feasibility display values from organizer product sheets: Trina Vertex N 590-620W module at 620 W, 2.382 m by 1.134 m, 33 kg, and Sigen Hybrid Inverter Gen 2 planning at up to 24 kWp PV input per 12 kW three-phase inverter
 - keep the sidebar application shell free of hardcoded user-profile placeholders until real authenticated profile data is available
 - keep Optimization focused on the active analysis, with judge-facing decision copy and editable assumptions instead of site/model comparison views
 

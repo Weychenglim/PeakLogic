@@ -84,6 +84,7 @@ The app must:
 - return backend-generated Optimization explanation, planning-basis labels, confidence flags, and active-analysis +/-10% tariff/CAPEX sensitivity rows for the current workbook or upload
 - return planning-period, monthly, and annualized savings fields so Optimization can distinguish modeled horizon savings from annualized judge-facing impact and compute payback from average monthly savings
 - present selected Optimization results beside key scenario alternatives such as fastest payback, highest MD cut, and lowest CAPEX profitable option
+- translate selected PV sizing into organizer-provided hardware feasibility estimates using the Trina Vertex N 590-620W PV module and Sigen Hybrid Inverter Gen 2 specifications
 - keep Site Profile focused on historical load shape, observed MD, solar metadata, interval counts, and data-quality status
 - show top observed historical peak events and a unified Site Operating Pattern summary in Site Profile, combining weekday versus weekend, daytime versus night, peak-to-average ratio, interval count, solar capacity, and data-quality gaps
 - keep future peak-risk windows and operator response guidance in Forecast & Risk only
@@ -107,6 +108,7 @@ Current implementation note:
 - The backend now owns the structured Optimization recommendation explanation and sensitivity payload consumed by the React UI.
 - Optimization finance outputs now distinguish planning-period savings, average monthly savings, annualized savings, CAPEX, and payback months; the UI uses annualized savings for judge-facing summary cards.
 - The Optimization tab now keeps the editable assumptions and Apply rerun flow, but uses a simpler decision-first layout with compact scenario comparison and a decision checklist instead of a dense sensitivity-card grid.
+- The Optimization decision checklist now estimates PV module count, panel area, module weight, and inverter count from the Trina Vertex N 590-620W and Sigen Hybrid Inverter Gen 2 datasheets when new solar is selected.
 - The Site Profile dashboard now emphasizes historical site diagnostics: observed maximum demand, top observed peak timestamps, and a unified operating-pattern section that pairs three load-pattern summaries with compact site facts.
 - The Forecast & Risk dashboard must open from the sidebar after an analysis is available and render its demand chart, peak window, recommendation cards, and peak-risk timeline without a route reset or runtime crash.
 - Solar-site forecasting must expose both gross facility load and utility-facing grid import. Gross load reconstructs demand by adding estimated existing solar output to `kw_import`, while MD, peak-risk, tariff, billing, savings, and executive-summary outputs continue to use grid-import kW.

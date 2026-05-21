@@ -66,6 +66,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Added Optimization finance normalization so backend scenario rows expose planning-period savings, average monthly savings, annualized savings, CAPEX, and horizon months; payback now uses average monthly savings.
 - Added a simplified Optimization options-considered comparison and decision checklist that keep the editable assumptions flow while removing the dense sensitivity-card grid from the decision view.
 - Filtered invalid optimization scenarios so battery power is no longer shown without storage energy, and clarified zero-investment options as operational load shifting.
+- Integrated organizer product-sheet context into Optimization UI: selected new PV now shows approximate Trina Vertex N module count, area, weight, and Sigen Hybrid Inverter Gen 2 count for feasibility review.
 - Hardened bundled workbook discovery so temporary Excel `~$` lock files are ignored before ingestion.
 - Added Site Profile Peak Risk Timeline and Solar Impact Comparison cards based on active forecast and optimized schedule payloads.
 - Removed the duplicate Site Profile risk/action sections after the Forecast & Risk page became the owner of future peak-risk guidance.

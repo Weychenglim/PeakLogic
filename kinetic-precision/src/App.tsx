@@ -13,6 +13,7 @@ import { ForecastRisk } from './components/ForecastRisk';
 import { Optimization } from './components/Optimization';
 import { ExecutiveSummary } from './components/ExecutiveSummary';
 import { AuthPage } from './components/AuthPage';
+import { SettingsPage } from './components/SettingsPage';
 import { ApiUnavailableBanner, type LoadingStepId } from './components/AnalysisState';
 import { NAV_ITEMS } from './constants';
 import {
@@ -55,6 +56,7 @@ export default function App() {
   }, [analysis?.metadata.existing_pv_kwp]);
 
   const activeTitle = useMemo(() => {
+    if (activeTab === 'settings') return 'Settings';
     return NAV_ITEMS.find(item => item.id === activeTab)?.label || 'Dashboard';
   }, [activeTab]);
 
@@ -302,6 +304,12 @@ export default function App() {
     }
   };
 
+  const handleNewAnalysis = () => {
+    setError(null);
+    setWaitingForProfileRedirect(false);
+    setActiveTab('upload');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'upload':
@@ -347,6 +355,8 @@ export default function App() {
         );
       case 'summary':
         return <ExecutiveSummary analysis={analysis} loading={loading} loadingStep={loadingStep} error={error} />;
+      case 'settings':
+        return <SettingsPage />;
       default:
         return (
           <DataUpload
@@ -394,6 +404,8 @@ export default function App() {
       <Sidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onNewAnalysis={handleNewAnalysis}
+        onSettings={() => setActiveTab('settings')}
         disabledTabs={analysis ? [] : ['profile', 'forecast', 'optimization', 'summary']}
       />
       

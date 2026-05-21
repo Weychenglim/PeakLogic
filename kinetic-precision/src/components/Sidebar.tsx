@@ -5,6 +5,8 @@ import { cn } from '../lib/utils';
 interface SidebarProps {
   activeTab: string;
   onTabChange: (id: string) => void;
+  onNewAnalysis?: () => void;
+  onSettings?: () => void;
   disabledTabs?: string[];
 }
 
@@ -16,7 +18,7 @@ const ICON_MAP: Record<string, any> = {
   BarChart,
 };
 
-export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, onNewAnalysis, onSettings, disabledTabs = [] }: SidebarProps) {
   return (
     <aside id="sidebar" className="h-screen w-64 fixed left-0 top-0 flex flex-col py-6 bg-slate-50 dark:bg-slate-900 z-20 border-r border-slate-200 dark:border-slate-800">
       <div className="px-6 mb-10">
@@ -58,12 +60,24 @@ export function Sidebar({ activeTab, onTabChange, disabledTabs = [] }: SidebarPr
       </nav>
 
       <div className="mt-auto px-4 space-y-1">
-        <button id="btn-new-analysis" className="w-full bg-primary text-on-primary rounded-full py-2.5 px-4 mb-6 flex items-center justify-center font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity">
+        <button
+          id="btn-new-analysis"
+          onClick={onNewAnalysis}
+          className="w-full bg-primary text-on-primary rounded-full py-2.5 px-4 mb-6 flex items-center justify-center font-bold text-sm shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+        >
           <Plus size={16} className="mr-2" />
           New Analysis
         </button>
 
-        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 rounded-xl transition-colors">
+        <button
+          onClick={onSettings}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors",
+            activeTab === 'settings'
+              ? "text-primary font-bold bg-primary/5"
+              : "text-slate-500 dark:text-slate-400 hover:bg-slate-200/50"
+          )}
+        >
           <Settings size={20} />
           <span className="text-sm font-medium">Settings</span>
         </button>

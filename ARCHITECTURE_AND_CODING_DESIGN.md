@@ -79,6 +79,7 @@ The current repository layout is:
 - `trex_energy/forecasting.py`: also includes `forecast_md_ensemble_profile` as the promoted separated-head app model; it takes p50 from the monthly MD correction candidate and p90/p95 from the ML MD-risk candidate, then reconciles ordering
 - `trex_energy/tariff.py`: bill-component calculations for MD and energy charges
 - `trex_energy/optimization.py`: deterministic scenario evaluation for flexible shifting, battery, and clear-sky sine solar
+- `trex_energy/optimization.py`: also normalizes Optimization finance outputs into planning-period savings, average monthly savings, annualized savings, CAPEX, and monthly payback
 - `trex_energy/reporting.py`: CSV export helpers, executive summary text, and cross-site comparison summaries
 - `tests/test_ingestion.py`: workbook-driven ingestion and validation tests against the four provided files
 - `tests/test_forecasting.py`: forecasting and backtest tests
@@ -129,10 +130,13 @@ Responsibilities:
 Responsibilities:
 - simulate flexible-load-block shifting under configurable rules
 - simulate battery dispatch under power and energy constraints
+- exclude physically invalid battery scenarios where battery power is present without storage energy, or storage energy is present without battery power
 - simulate solar sizing scenarios using a standard PV generation profile
 - use a clear-sky sine solar factor between 06:00 and 18:00 when no measured PV generation profile is available
 - return interval-level optimized schedules and scenario summaries
 - evaluate active-analysis sensitivity by rerunning the deterministic scenario evaluator with +/-10% MD-rate, battery-CAPEX, and solar-CAPEX variants
+- keep `savings_rm` as modeled planning-period savings while exposing `monthly_savings_rm`, `annual_savings_rm`, `capex_rm`, and `savings_period_months` for UI/reporting clarity
+- compute simple payback from average monthly savings, not total multi-month planning-period savings
 
 ### Tariff Calculator
 Responsibilities:
@@ -158,6 +162,8 @@ Responsibilities:
 - select Forecast & Risk chart sub-windows from the start of `forecast.points` so shorter views preview the beginning of the future planning horizon consistently with the month view
 - build Forecast & Risk month-scale window options from `analysis.assumptions.planning_months`, so 2-month and 3-month analyses expose 60-day and 90-day forecast scopes
 - render optimization comparisons and executive-summary outputs
+- render a compact Optimization options-considered comparison for recommended, fastest-payback, maximum-peak-cut, and lowest-investment profitable alternatives when those alternatives are distinct
+- render a concise Optimization decision checklist covering data readiness, locked assumptions, and presentation evidence instead of exposing the full sensitivity table in the main page flow
 - keep the sidebar application shell free of hardcoded user-profile placeholders until real authenticated profile data is available
 - keep Optimization focused on the active analysis, with judge-facing decision copy and editable assumptions instead of site/model comparison views
 
@@ -173,6 +179,7 @@ Responsibilities:
 - export forecast and scenario tables
 - support presentation-friendly summaries
 - generate Optimization explanation text, planning-basis labels, confidence flags, and sensitivity summaries for the active analysis
+- include annualized savings and planning-period context in Optimization explanation text so judges can read financial impact without misinterpreting the modeled horizon
 
 ## Coding Design Conventions
 - Use Python as the primary implementation language.

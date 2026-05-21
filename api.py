@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -27,17 +28,24 @@ from trex_energy.validation import validate_intervals
 
 ROOT = Path(__file__).resolve().parent
 
+
+def _cors_origins() -> list[str]:
+    configured = os.getenv("FRONTEND_ORIGINS", "")
+    origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return ["http://localhost:3000", "http://127.0.0.1:3000", *origins]
+
+
 app = FastAPI(title="TREX Local API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_cors_origins(),
     allow_origin_regex=(
         r"^https?://("
         r"localhost|127\.0\.0\.1|0\.0\.0\.0|"
         r"192\.168\.\d{1,3}\.\d{1,3}|"
         r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
         r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
-        r"):\d+$"
+        r"):\d+$|^https://[a-z0-9-]+\.vercel\.app$"
     ),
     allow_credentials=True,
     allow_methods=["*"],

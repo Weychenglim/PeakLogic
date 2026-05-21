@@ -95,6 +95,52 @@ create policy "analysis_cache_update" on analysis_cache
 
 Supabase Auth should have Email/Password enabled for the login UI.
 
+## Public Demo Deployment
+
+This repo is configured for a split free-tier deployment:
+
+- Backend API on Render from the repository root.
+- Frontend app on Vercel from `kinetic-precision/`.
+
+### Render Backend
+
+Use `render.yaml` as the Render blueprint. The service runs:
+
+```text
+uvicorn api:app --host 0.0.0.0 --port $PORT
+```
+
+After Render creates the service, set this environment variable:
+
+```text
+FRONTEND_ORIGINS=https://your-vercel-app.vercel.app
+```
+
+The API health check is:
+
+```text
+https://your-render-service.onrender.com/api/health
+```
+
+### Vercel Frontend
+
+Create the Vercel project with:
+
+```text
+Root Directory: kinetic-precision
+Framework: Vite
+Build Command: npm run build
+Output Directory: dist
+```
+
+Set this Vercel environment variable:
+
+```text
+VITE_API_BASE_URL=https://your-render-service.onrender.com
+```
+
+Render free services can cold-start after inactivity. For a live judging demo, open the API health URL shortly before presenting or temporarily use a paid Render instance.
+
 ## Current Forecast Path
 
 The main API uses the stable monthly planning forecast for the user-facing app. ML candidates remain in the backend for model development and validation, but model benchmark details are not shown in the UI.

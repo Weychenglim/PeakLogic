@@ -183,6 +183,7 @@ def _build_analysis_payload(
         battery_capex_rm_per_kw=battery_capex_rm_per_kw,
         battery_capex_rm_per_kwh=battery_capex_rm_per_kwh,
         solar_capex_rm_per_kwp=solar_capex_rm_per_kwp,
+        savings_period_months=months,
         base_solar_kwp=base_solar_kwp,
         tariff=tariff,
     )

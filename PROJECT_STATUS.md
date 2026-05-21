@@ -63,6 +63,9 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Simplified Site Profile and Forecast & Risk UI to show one operational forecast/risk result, hiding p90/p95 model wording from the user-facing dashboard views.
 - Updated the Optimization tab into a judge-facing decision screen with What Changed, Why This Scenario, and Savings Sensitivity copy, friendlier conservative peak-demand wording, editable assumptions, and an Apply action for the active bundled workbook or retained upload.
 - Added backend-generated Optimization explanation, confidence flags, planning-basis labels, and active-analysis +/-10% sensitivity rows for MD rate, battery CAPEX, and solar CAPEX; React now renders those backend fields in the Optimization view.
+- Added Optimization finance normalization so backend scenario rows expose planning-period savings, average monthly savings, annualized savings, CAPEX, and horizon months; payback now uses average monthly savings.
+- Added a simplified Optimization options-considered comparison and decision checklist that keep the editable assumptions flow while removing the dense sensitivity-card grid from the decision view.
+- Filtered invalid optimization scenarios so battery power is no longer shown without storage energy, and clarified zero-investment options as operational load shifting.
 - Hardened bundled workbook discovery so temporary Excel `~$` lock files are ignored before ingestion.
 - Added Site Profile Peak Risk Timeline and Solar Impact Comparison cards based on active forecast and optimized schedule payloads.
 - Removed the duplicate Site Profile risk/action sections after the Forecast & Risk page became the owner of future peak-risk guidance.
@@ -108,6 +111,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - Continue improving precision and peak timing after the tuned overlay's recall improvement, but do not accept changes that collapse recall.
 - Improve the forecasting model with site-local calibration and clearer uncertainty communication.
 - Refine optimization scoring and payback assumptions using confirmed tariff/CAPEX inputs.
+- Refine the recommendation selector beyond highest modeled savings by incorporating payback, CAPEX, sensitivity stability, and feasibility constraints.
 - Strengthen the bundled site comparison view with clearer ranking, annotations, and judge-facing storytelling.
 - Add stronger presentation/report formatting for judge-facing executive summaries.
 - Expand validation and forecasting coverage with additional edge-case tests.
@@ -142,6 +146,8 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 - The broader non-solar night site-peak fallback is rejected for the active notebook path because it regressed the uplift candidate to `110.24` kW MD abs error and `142.29` kW RMSE.
 - The direct-horizon HGB candidate is rejected because rolling MD abs error regresses to `160.07` kW, E MD abs error rises to `290.62` kW, and Mi2 MD abs error rises to `182.68` kW.
 - The current optimization and payback logic is also a baseline and should remain transparent and editable.
+- Optimization scenario finance should distinguish modeled planning-period savings from annualized impact. Payback should be based on average monthly savings across the selected horizon.
+- The Optimization tab should show compact scenario evidence and next-step implementation guidance without overwhelming the decision view.
 - The current reporting layer exports CSVs but does not yet generate a polished presentation-ready report.
 - The current React frontend is newly wired to the backend and should receive browser-based UX polish after the API workflow is verified locally.
 - The Optimization tab should remain focused on one active analysis and avoid introducing site-by-site or model-comparison controls into the decision screen.
@@ -166,6 +172,7 @@ The project now has an end-to-end baseline workflow from data ingestion through 
 
 ## Recent Changes
 - 2026-05-19: Promoted `forecast_md_ensemble_profile` into the FastAPI analysis path. Bundled analyses now train with other bundled workbooks as reference frames when possible, return `planning_method` as `md_ensemble_gradient_boosting`, and fall back to `forecast_monthly_planning_profile` if the ensemble cannot run.
+- 2026-05-21: Corrected Optimization finance semantics for multi-month horizons, adding monthly and annualized savings fields plus CAPEX-backed payback, and simplified the React Optimization page into a decision-first layout with compact scenario comparison.
 - 2026-05-19: Cleaned up Site Profile and Forecast & Risk page ownership. Site Profile now focuses on historical load and site-health metrics, while Forecast & Risk replaces the duplicate block timeline with a ranked Top Risk Windows list.
 - 2026-05-19: Filled out Site Profile with top observed historical peak timestamps plus weekday/weekend, daytime/night, and peak-to-average summaries, reducing empty page space while keeping future risk guidance only in Forecast & Risk.
 - 2026-05-19: Unified the Site Profile pattern summary and site facts into one compact Site Operating Pattern section, removing the conflicting lower six-card grid.

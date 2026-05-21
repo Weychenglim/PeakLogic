@@ -82,6 +82,8 @@ The app must:
 - expose editable planning, tariff, CAPEX, growth, and EV-load assumptions directly in the Optimization tab, with an Apply action that reruns the active workbook or retained upload
 - explain Optimization results with judge-facing "what changed", "why this scenario", and "savings sensitivity" copy without adding site-by-site or model-comparison views
 - return backend-generated Optimization explanation, planning-basis labels, confidence flags, and active-analysis +/-10% tariff/CAPEX sensitivity rows for the current workbook or upload
+- return planning-period, monthly, and annualized savings fields so Optimization can distinguish modeled horizon savings from annualized judge-facing impact and compute payback from average monthly savings
+- present selected Optimization results beside key scenario alternatives such as fastest payback, highest MD cut, and lowest CAPEX profitable option
 - keep Site Profile focused on historical load shape, observed MD, solar metadata, interval counts, and data-quality status
 - show top observed historical peak events and a unified Site Operating Pattern summary in Site Profile, combining weekday versus weekend, daytime versus night, peak-to-average ratio, interval count, solar capacity, and data-quality gaps
 - keep future peak-risk windows and operator response guidance in Forecast & Risk only
@@ -103,6 +105,8 @@ Current implementation note:
 - The React/FastAPI path now accepts editable tariff, CAPEX, and planning-month assumptions, and the forecast payload includes a separate peak-risk overlay score for high MD-risk chart markers.
 - The Optimization tab now treats assumptions as editable decision inputs rather than locked display values.
 - The backend now owns the structured Optimization recommendation explanation and sensitivity payload consumed by the React UI.
+- Optimization finance outputs now distinguish planning-period savings, average monthly savings, annualized savings, CAPEX, and payback months; the UI uses annualized savings for judge-facing summary cards.
+- The Optimization tab now keeps the editable assumptions and Apply rerun flow, but uses a simpler decision-first layout with compact scenario comparison and a decision checklist instead of a dense sensitivity-card grid.
 - The Site Profile dashboard now emphasizes historical site diagnostics: observed maximum demand, top observed peak timestamps, and a unified operating-pattern section that pairs three load-pattern summaries with compact site facts.
 - The Forecast & Risk dashboard must open from the sidebar after an analysis is available and render its demand chart, peak window, recommendation cards, and peak-risk timeline without a route reset or runtime crash.
 - Solar-site forecasting must expose both gross facility load and utility-facing grid import. Gross load reconstructs demand by adding estimated existing solar output to `kw_import`, while MD, peak-risk, tariff, billing, savings, and executive-summary outputs continue to use grid-import kW.
@@ -155,6 +159,7 @@ Current implementation note:
 - App shows credible multi-site forecasting and optimization behavior.
 - App prioritizes useful MD peak detection and peak ranking, because missing MD peaks directly weakens the peak-shaving recommendation.
 - App quantifies MD reduction, bill savings, and simple payback for candidate battery and PV sizes.
+- App labels financial results by planning horizon and annualized impact so multi-month analyses do not overstate payback or savings.
 - App clearly explains assumptions, risks, and why recommendations differ across sites.
 - App is resilient enough to ingest future unseen datasets with limited manual adjustment.
 - App gives judges downloadable outputs and a cross-site comparison view to support presentation storytelling.

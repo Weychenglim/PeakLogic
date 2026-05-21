@@ -69,6 +69,10 @@ export interface OptimizationScenario {
   bill_before_rm: number;
   bill_after_rm: number;
   savings_rm: number;
+  monthly_savings_rm: number;
+  annual_savings_rm: number;
+  capex_rm: number;
+  savings_period_months: number;
   md_before: number;
   md_after: number;
   peak_reduction_pct: number;
@@ -84,6 +88,10 @@ export interface OptimizationSensitivity {
   changed_assumption: string;
   change_pct: number;
   savings_rm: number;
+  monthly_savings_rm: number;
+  annual_savings_rm: number;
+  capex_rm: number;
+  savings_period_months: number;
   payback_months: number | null;
   bill_before_rm: number;
   bill_after_rm: number;

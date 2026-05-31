@@ -94,7 +94,7 @@ export function AuthPage() {
         </form>
 
         <div className="mt-6 flex items-center justify-between text-xs font-bold text-on-surface-variant">
-          <span>{mode === 'signup' ? 'Already have an account?' : 'New to TREX?'}</span>
+          <span>{mode === 'signup' ? 'Already have an account?' : 'New to PeakLogic?'}</span>
           <button
             type="button"
             onClick={() => {

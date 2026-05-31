@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Battery, CheckCircle2, Gauge, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, TrendingDown, WalletCards, Zap } from 'lucide-react';
+import { CheckCircle2, Gauge, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingDown, WalletCards } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult, PlanningAssumptions } from '../lib/api';
@@ -15,6 +15,13 @@ interface OptimizationProps {
   onApplyAssumptions: () => void;
   canApplyAssumptions: boolean;
 }
+
+const PV_MODULE_NAME = 'Trina Vertex N 590-620W';
+const INVERTER_NAME = 'Sigen Hybrid Inverter Gen 2';
+const PV_MODULE_WP = 620;
+const PV_MODULE_AREA_SQM = 2.382 * 1.134;
+const PV_MODULE_WEIGHT_KG = 33;
+const MAX_PV_KWP_PER_INVERTER = 24;
 
 function scheduleData(analysis: AnalysisResult | null) {
   return (analysis?.optimization.schedule_preview ?? []).filter((_, index) => index % 8 === 0).map(point => ({
@@ -36,7 +43,68 @@ function formatRm(value: number) {
 }
 
 function formatPayback(months: number | null) {
-  return months ? `${months.toFixed(1)} months` : 'No CAPEX';
+  return months != null ? `${months.toFixed(1)} months` : 'No CAPEX';
+}
+
+function annualSavings(scenario: AnalysisResult['optimization']['best_scenario']) {
+  return Number(scenario.annual_savings_rm ?? scenario.savings_rm);
+}
+
+function scenarioCapex(scenario: AnalysisResult['optimization']['best_scenario']) {
+  return Number(scenario.capex_rm ?? 0);
+}
+
+function scenarioSystem(scenario: AnalysisResult['optimization']['best_scenario']) {
+  if (scenario.battery_kw <= 0 && scenario.battery_kwh <= 0 && scenario.solar_kwp <= 0) {
+    return 'Operational load shifting only';
+  }
+  const parts = [
+    `${scenario.battery_kw.toFixed(0)} kW battery`,
+    `${scenario.battery_kwh.toFixed(0)} kWh storage`,
+    `${scenario.solar_kwp.toFixed(0)} kWp ${PV_MODULE_NAME} PV`,
+  ].filter(part => !part.startsWith('0 '));
+  return parts.join(' / ');
+}
+
+function pvFeasibility(solarKwp: number) {
+  if (solarKwp <= 0) return null;
+  const modules = Math.ceil((solarKwp * 1000) / PV_MODULE_WP);
+  const areaSqm = modules * PV_MODULE_AREA_SQM;
+  const weightTonnes = (modules * PV_MODULE_WEIGHT_KG) / 1000;
+  const inverters = Math.ceil(solarKwp / MAX_PV_KWP_PER_INVERTER);
+  return { modules, areaSqm, weightTonnes, inverters };
+}
+
+function uniqueScenarioHighlights(analysis: AnalysisResult) {
+  const scenarios = analysis.optimization.scenarios.length > 0
+    ? analysis.optimization.scenarios
+    : [analysis.optimization.best_scenario];
+  const positivePayback = scenarios.filter(row => row.payback_months != null && annualSavings(row) > 0);
+  const positiveSavings = scenarios.filter(row => annualSavings(row) > 0);
+  const candidates = [
+    {
+      role: 'Recommended',
+      scenario: analysis.optimization.best_scenario,
+    },
+    {
+      role: 'Fastest payback',
+      scenario: [...positivePayback].sort((a, b) => Number(a.payback_months) - Number(b.payback_months))[0],
+    },
+    {
+      role: 'Maximum peak cut',
+      scenario: [...scenarios].sort((a, b) => b.peak_reduction_pct - a.peak_reduction_pct)[0],
+    },
+    {
+      role: 'Lowest investment',
+      scenario: [...positiveSavings].sort((a, b) => scenarioCapex(a) - scenarioCapex(b) || annualSavings(b) - annualSavings(a))[0],
+    },
+  ];
+  const seen = new Set<string>();
+  return candidates.filter(candidate => {
+    if (!candidate.scenario || seen.has(candidate.scenario.scenario_id)) return false;
+    seen.add(candidate.scenario.scenario_id);
+    return true;
+  });
 }
 
 function AssumptionField({
@@ -98,15 +166,35 @@ function MetricCard({
   );
 }
 
-function SystemPill({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Battery }) {
+function ScenarioRow({
+  role,
+  scenario,
+  selected,
+}: {
+  key?: string;
+  role: string;
+  scenario: AnalysisResult['optimization']['best_scenario'];
+  selected: boolean;
+}) {
+  const description = {
+    Recommended: 'Best balance from the optimizer.',
+    'Fastest payback': 'Gets investment back soonest.',
+    'Maximum peak cut': 'Most aggressive peak shaving.',
+    'Lowest investment': scenarioCapex(scenario) === 0 ? 'No-hardware operational option.' : 'Cheapest option that still saves.',
+  }[role] ?? 'Alternative tested by the optimizer.';
+
   return (
-    <div className="rounded-lg bg-surface-container-low px-4 py-3">
-      <div className="mb-2 flex items-center gap-2 text-primary">
-        <Icon size={15} />
-        <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{label}</span>
-      </div>
-      <p className="text-lg font-black text-on-surface">{value}</p>
-    </div>
+    <tr className={selected ? 'bg-primary-fixed/55' : 'bg-surface-container-low'}>
+      <td className="rounded-l-lg px-4 py-3">
+        <p className="text-xs font-black text-on-surface">{role}</p>
+        <p className="mt-0.5 text-[10px] font-bold text-on-surface-variant">{description}</p>
+        <p className="mt-1 text-[10px] font-bold text-on-surface-variant">{scenarioSystem(scenario)}</p>
+      </td>
+      <td className="px-4 py-3 text-right text-sm font-black text-on-surface">{formatRm(annualSavings(scenario))}<span className="text-[10px] text-on-surface-variant">/year</span></td>
+      <td className="px-4 py-3 text-right text-sm font-black text-on-surface">{formatPayback(scenario.payback_months)}</td>
+      <td className="px-4 py-3 text-right text-sm font-black text-on-surface">{scenario.md_after.toFixed(0)} kW</td>
+      <td className="rounded-r-lg px-4 py-3 text-right text-sm font-black text-on-surface">{formatRm(scenarioCapex(scenario))}</td>
+    </tr>
   );
 }
 
@@ -132,9 +220,11 @@ export function Optimization({
   const data = scheduleData(analysis);
   const analysisAssumptions = analysis.assumptions;
   const explanation = analysis.optimization.explanation;
-  const sensitivityRows = analysis.optimization.sensitivity ?? [];
   const mdReductionKw = best.md_before - best.md_after;
   const planningLabel = explanation.planning_basis_label || planningBasisLabel(best.risk_basis);
+  const periodMonths = Number(best.savings_period_months ?? analysisAssumptions.planning_months ?? 1);
+  const scenarioHighlights = uniqueScenarioHighlights(analysis);
+  const pvPlan = pvFeasibility(best.solar_kwp);
   const updateAssumption = (key: keyof PlanningAssumptions, value: number) => {
     onAssumptionsChange({ ...assumptions, [key]: value });
   };
@@ -145,9 +235,9 @@ export function Optimization({
         <div className="col-span-12 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm lg:col-span-5">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-primary">Recommended optimization plan</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-primary">Recommended plan</p>
               <h2 className="mt-2 font-headline text-3xl font-black tracking-tight text-on-surface">
-                Reduce MD by {mdReductionKw.toFixed(0)} kW and save {formatRm(best.savings_rm)}
+                {scenarioSystem(best)}
               </h2>
             </div>
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-primary">
@@ -155,24 +245,33 @@ export function Optimization({
             </div>
           </div>
 
-          <p className="text-sm font-medium leading-relaxed text-on-surface-variant">{explanation.what_changed}</p>
-
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <SystemPill label="Battery power" value={`${best.battery_kw.toFixed(0)} kW`} icon={Battery} />
-            <SystemPill label="Storage size" value={`${best.battery_kwh.toFixed(0)} kWh`} icon={Zap} />
-            <SystemPill label="New solar" value={`${best.solar_kwp.toFixed(0)} kWp`} icon={Sun} />
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Save</p>
+              <p className="mt-1 text-base font-black text-on-surface">{formatRm(annualSavings(best))}/yr</p>
+            </div>
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Cut MD</p>
+              <p className="mt-1 text-base font-black text-on-surface">{mdReductionKw.toFixed(0)} kW</p>
+            </div>
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Payback</p>
+              <p className="mt-1 text-base font-black text-on-surface">{formatPayback(best.payback_months)}</p>
+            </div>
           </div>
 
-          <div className="mt-6 rounded-lg bg-secondary-container/45 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-secondary-fixed/70">Why this scenario</p>
-            <p className="mt-2 text-sm font-semibold leading-relaxed text-on-secondary-fixed">{explanation.why_this_scenario}</p>
+          <div className="mt-5 rounded-lg bg-secondary-container/45 px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-secondary-fixed/70">Why this one</p>
+            <p className="mt-2 text-sm font-semibold leading-relaxed text-on-secondary-fixed">
+              Best savings in the tested set with {formatRm(scenarioCapex(best))} investment.
+            </p>
           </div>
 
           <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Assumptions used</p>
               <p className="mt-1 text-xs font-semibold text-on-surface-variant">
-                {analysisAssumptions.planning_months} month{analysisAssumptions.planning_months === 1 ? '' : 's'} · RM {analysisAssumptions.md_rate_rm_per_kw.toFixed(2)}/kW MD · RM {analysisAssumptions.solar_capex_rm_per_kwp.toFixed(0)}/kWp solar
+                {analysisAssumptions.planning_months} month{analysisAssumptions.planning_months === 1 ? '' : 's'} / RM {analysisAssumptions.md_rate_rm_per_kw.toFixed(2)}/kW MD / RM {analysisAssumptions.solar_capex_rm_per_kwp.toFixed(0)}/kWp solar
               </p>
             </div>
             <button
@@ -190,27 +289,27 @@ export function Optimization({
         <div className="col-span-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-7">
           <MetricCard
             highlight
-            label="Annual savings"
-            value={formatRm(best.savings_rm)}
-            detail={`Optimized bill ${formatRm(best.bill_after_rm)} from ${formatRm(best.bill_before_rm)} baseline.`}
+            label="Annualized savings"
+            value={formatRm(annualSavings(best))}
+            detail={`${formatRm(best.savings_rm)} over the active ${periodMonths}M plan.`}
             icon={WalletCards}
           />
           <MetricCard
             label="Maximum demand"
             value={`${best.md_after.toFixed(0)} kW`}
-            detail={`Down from ${best.md_before.toFixed(0)} kW, a ${best.peak_reduction_pct.toFixed(1)}% peak reduction.`}
+            detail={`${best.peak_reduction_pct.toFixed(1)}% below baseline.`}
             icon={Gauge}
           />
           <MetricCard
             label="Payback"
             value={formatPayback(best.payback_months)}
-            detail="Estimated from battery, storage, and solar CAPEX assumptions."
+            detail={`${formatRm(scenarioCapex(best))} CAPEX, ${formatRm(best.monthly_savings_rm)}/month savings.`}
             icon={TrendingDown}
           />
           <MetricCard
             label="Planning basis"
             value={planningLabel}
-            detail={explanation.planning_basis_description}
+            detail="Uses conservative demand for peak-charge protection."
             icon={ShieldCheck}
           />
         </div>
@@ -279,6 +378,43 @@ export function Optimization({
         </section>
       </div>
 
+      <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-headline text-xl font-black text-on-surface">Options Considered</h3>
+            <p className="mt-1 text-sm font-medium text-on-surface-variant">
+              The optimizer tested combinations of battery power, storage size, and solar capacity, then kept the most useful choices.
+            </p>
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+            {analysis.optimization.scenarios.length} battery/storage/solar combinations tested
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-separate border-spacing-y-2">
+            <thead>
+              <tr className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+                <th className="px-4 pb-1 text-left">Option</th>
+                <th className="px-4 pb-1 text-right">Saves</th>
+                <th className="px-4 pb-1 text-right">Payback</th>
+                <th className="px-4 pb-1 text-right">New peak</th>
+                <th className="px-4 pb-1 text-right">Investment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenarioHighlights.map(highlight => (
+                <ScenarioRow
+                  key={`${highlight.role}-${highlight.scenario.scenario_id}`}
+                  role={highlight.role}
+                  scenario={highlight.scenario}
+                  selected={highlight.scenario.scenario_id === best.scenario_id}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="grid grid-cols-12 gap-6">
         <div className="col-span-12 rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm lg:col-span-8">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -308,15 +444,18 @@ export function Optimization({
 
         <div className="col-span-12 space-y-4 lg:col-span-4">
           <div className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Decision confidence</p>
-            <div className="mt-4 space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Data checks</p>
+            <div className="mt-4 space-y-2">
               {explanation.confidence_flags.length > 0 ? explanation.confidence_flags.map(flag => (
-                <div key={flag.label} className="flex gap-3 rounded-lg bg-surface-container-low p-3">
-                  <CheckCircle2 size={16} className={flag.level === 'ok' ? 'mt-0.5 shrink-0 text-secondary' : 'mt-0.5 shrink-0 text-tertiary'} />
-                  <div>
+                <div key={flag.label} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2" title={flag.message}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className={flag.level === 'ok' ? 'shrink-0 text-secondary' : 'shrink-0 text-tertiary'} />
                     <p className="text-xs font-black uppercase tracking-widest text-on-surface">{flag.label}</p>
-                    <p className="mt-1 text-xs font-semibold leading-relaxed text-on-surface-variant">{flag.message}</p>
                   </div>
+                  <span className={cn(
+                    'rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest',
+                    flag.level === 'ok' ? 'bg-secondary-container text-secondary' : 'bg-tertiary-fixed text-tertiary'
+                  )}>{flag.level === 'ok' ? 'OK' : 'Review'}</span>
                 </div>
               )) : (
                 <p className="text-sm font-medium text-on-surface-variant">No confidence flags returned for this analysis.</p>
@@ -325,32 +464,60 @@ export function Optimization({
           </div>
 
           <div className="rounded-xl border border-outline-variant/10 bg-surface-container-low p-5 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Savings sensitivity</p>
-            <p className="mt-3 text-sm font-semibold leading-relaxed text-on-surface">{explanation.savings_sensitivity}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Assumptions</p>
+            <p className="mt-3 text-sm font-black text-on-surface">Editable inputs are above</p>
+            <p className="mt-1 text-xs font-semibold leading-relaxed text-on-surface-variant">Change tariff, CAPEX, load growth, or EV load, then rerun the plan.</p>
           </div>
         </div>
       </section>
 
-      {sensitivityRows.length > 0 && (
-        <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h3 className="font-headline text-xl font-black text-on-surface">Sensitivity Check</h3>
-              <p className="mt-1 text-sm font-medium text-on-surface-variant">Active-analysis +/-10% checks for tariff and CAPEX assumptions.</p>
+      <section className="rounded-xl border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-headline text-xl font-black text-on-surface">Decision Checklist</h3>
+            <p className="mt-1 text-sm font-medium text-on-surface-variant">Use this before presenting or approving the recommendation.</p>
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Before final sign-off</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="rounded-lg bg-surface-container-low p-5">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+              <ShieldCheck size={19} />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{analysis.optimization.scenarios.length} scenarios tested</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Data ready</p>
+            <p className="mt-2 font-headline text-xl font-black text-on-surface">
+              {analysis.validation.gap_count === 0 && analysis.validation.missing_value_count === 0 ? 'Clean enough' : 'Review first'}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-on-surface-variant">
+              Check interval gaps and missing values before using this as final evidence.
+            </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {sensitivityRows.map(row => (
-              <div key={row.sensitivity_id} className="rounded-lg bg-surface-container-low p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{row.label}</p>
-                <p className="mt-2 text-xl font-black text-on-surface">{formatRm(row.savings_rm)}</p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Payback {formatPayback(row.payback_months)}</p>
-              </div>
-            ))}
+          <div className="rounded-lg bg-surface-container-low p-5">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+              <SlidersHorizontal size={19} />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Inputs locked</p>
+            <p className="mt-2 font-headline text-xl font-black text-on-surface">{periodMonths}M planning basis</p>
+            <p className="mt-1 text-sm font-semibold text-on-surface-variant">
+              Confirm tariff, investment, growth, and EV assumptions with the editable inputs above.
+            </p>
           </div>
-        </section>
-      )}
+          <div className="rounded-lg bg-surface-container-low p-5">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+              <WalletCards size={19} />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">PV feasibility</p>
+            <p className="mt-2 font-headline text-xl font-black text-on-surface">
+              {pvPlan ? `${pvPlan.modules} modules / ${pvPlan.inverters} inverters` : 'No new PV selected'}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-on-surface-variant">
+              {pvPlan
+                ? `Allow for about ${pvPlan.areaSqm.toFixed(0)} square meters of PV module area and ${pvPlan.weightTonnes.toFixed(1)} tonnes of module weight, based on ${PV_MODULE_NAME} and ${INVERTER_NAME} specifications.`
+                : `No ${PV_MODULE_NAME} layout check is needed for this selected option.`}
+            </p>
+          </div>
+        </div>
+      </section>
 
     </div>
   );

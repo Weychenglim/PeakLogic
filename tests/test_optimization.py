@@ -276,6 +276,74 @@ class OptimizationTests(unittest.TestCase):
         self.assertIn("solar_capex_minus_10", sensitivity["sensitivity_id"].tolist())
         self.assertEqual(sensitivity["scope"].unique().tolist(), ["active_analysis"])
 
+    def test_multi_month_scenario_reports_monthly_and_annualized_finance(self) -> None:
+        from trex_energy.optimization import OptimizationConfig, evaluate_site_scenarios
+        from trex_energy.tariff import TariffConfig
+
+        frame = pd.DataFrame(
+            {
+                "site_id": ["planning_site"] * 8,
+                "interval_start": pd.date_range("2025-01-01 00:00:00", periods=8, freq="30min"),
+                "interval_end": pd.date_range("2025-01-01 00:30:00", periods=8, freq="30min"),
+                "forecast_kw_import": [100.0, 100.0, 1000.0, 100.0, 100.0, 100.0, 1000.0, 100.0],
+            }
+        )
+        config = OptimizationConfig(
+            flexible_load_fraction=0.0,
+            battery_kw_options=[100.0],
+            battery_kwh_options=[200.0],
+            solar_kwp_options=[0.0],
+            battery_capex_rm_per_kw=10.0,
+            battery_capex_rm_per_kwh=0.0,
+            savings_period_months=2,
+            tariff=TariffConfig(
+                md_rate_rm_per_kw=10.0,
+                offpeak_energy_rate_rm_per_kwh=0.0,
+                peak_energy_rate_rm_per_kwh=0.0,
+                md_period_intervals=4,
+            ),
+        )
+
+        result = evaluate_site_scenarios(frame, config)
+        best = result.best_scenario
+        savings = float(best["savings_rm"])
+        expected_monthly_savings = savings / 2.0
+
+        self.assertGreater(savings, 0.0)
+        self.assertAlmostEqual(float(best["monthly_savings_rm"]), expected_monthly_savings)
+        self.assertAlmostEqual(float(best["annual_savings_rm"]), expected_monthly_savings * 12.0)
+        self.assertAlmostEqual(float(best["capex_rm"]), 1000.0)
+        self.assertAlmostEqual(float(best["payback_months"]), 1000.0 / expected_monthly_savings)
+        self.assertNotAlmostEqual(float(best["payback_months"]), 1000.0 / savings)
+        self.assertEqual(best["savings_period_months"], 2)
+
+    def test_scenario_search_excludes_invalid_battery_power_without_storage(self) -> None:
+        from trex_energy.optimization import OptimizationConfig, evaluate_site_scenarios
+        from trex_energy.tariff import TariffConfig
+
+        frame = pd.DataFrame(
+            {
+                "site_id": ["planning_site"] * 4,
+                "interval_start": pd.date_range("2025-01-01 00:00:00", periods=4, freq="30min"),
+                "interval_end": pd.date_range("2025-01-01 00:30:00", periods=4, freq="30min"),
+                "forecast_kw_import": [100.0, 400.0, 100.0, 400.0],
+            }
+        )
+        config = OptimizationConfig(
+            flexible_load_fraction=0.0,
+            battery_kw_options=[0.0, 100.0],
+            battery_kwh_options=[0.0, 200.0],
+            solar_kwp_options=[0.0],
+            tariff=TariffConfig(md_rate_rm_per_kw=10.0, offpeak_energy_rate_rm_per_kwh=0.0, peak_energy_rate_rm_per_kwh=0.0),
+        )
+
+        result = evaluate_site_scenarios(frame, config)
+        invalid_rows = result.scenario_summary[
+            (result.scenario_summary["battery_kw"] > 0) & (result.scenario_summary["battery_kwh"] <= 0)
+        ]
+
+        self.assertTrue(invalid_rows.empty)
+
 
 if __name__ == "__main__":
     unittest.main()

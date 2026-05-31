@@ -1,5 +1,12 @@
 # PeakLogic
-Local React + FastAPI decision-support demo for TREX maximum-demand planning, forecasting, and optimization.
+
+PeakLogic is a React + FastAPI decision-support application for commercial energy demand planning, forecasting, and optimization. It analyzes historical site load data, identifies maximum-demand risk, compares load shifting, battery, and solar options, and presents cost-saving recommendations through an interactive dashboard.
+
+## Project Description
+
+PeakLogic helps users turn site electricity load workbooks into practical planning decisions. The backend reads bundled or uploaded Excel files, normalizes interval data, validates data quality, forecasts future demand, identifies high-risk maximum-demand windows, and simulates optimization options such as operational load shifting, battery dispatch, and solar sizing.
+
+The frontend presents those results as an interactive dashboard with site profiles, forecast and risk views, optimization recommendations, financial assumptions, and export-ready analysis outputs. The app is designed to help users compare current operating costs against optimized scenarios and understand which actions can reduce demand charges and overall electricity cost.
 
 ## Start Locally
 
@@ -59,7 +66,7 @@ http://localhost:8000
 
 ## Supabase Setup
 
-Create a Supabase project and copy these values into `kinetic-precision/.env.local` (not committed):
+Create a Supabase project and copy these values into the frontend environment file at `kinetic-precision/.env.local` (not committed):
 
 ```
 VITE_SUPABASE_URL=your_project_url

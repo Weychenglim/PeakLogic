@@ -38,7 +38,9 @@ def build_site_comparison_summary(
 
 
 def build_executive_summary_text(site_id: str, best_scenario: dict[str, object]) -> str:
-    savings = float(best_scenario["savings_rm"])
+    annual_savings = float(best_scenario.get("annual_savings_rm", best_scenario["savings_rm"]))
+    period_savings = float(best_scenario["savings_rm"])
+    period_months = int(best_scenario.get("savings_period_months", 1) or 1)
     md_before = float(best_scenario["md_before"])
     md_after = float(best_scenario["md_after"])
     battery_kw = float(best_scenario["battery_kw"])
@@ -46,7 +48,8 @@ def build_executive_summary_text(site_id: str, best_scenario: dict[str, object])
     solar_kwp = float(best_scenario["solar_kwp"])
     return (
         f"{site_id} can reduce forecast maximum demand from {md_before:.1f} kW to {md_after:.1f} kW, "
-        f"with estimated savings of RM {savings:.2f}. "
+        f"with annualized savings of RM {annual_savings:.2f} from RM {period_savings:.2f} over the "
+        f"{period_months}-month planning period. "
         f"Current best baseline scenario uses battery {battery_kw:.0f} kW / {battery_kwh:.0f} kWh "
         f"and solar {solar_kwp:.0f} kWp."
     )
@@ -72,6 +75,10 @@ def build_optimization_explanation(
     bill_before = float(best_scenario["bill_before_rm"])
     bill_after = float(best_scenario["bill_after_rm"])
     savings = float(best_scenario["savings_rm"])
+    monthly_savings = float(best_scenario.get("monthly_savings_rm", savings))
+    annual_savings = float(best_scenario.get("annual_savings_rm", monthly_savings * 12.0))
+    capex = float(best_scenario.get("capex_rm", 0.0))
+    period_months = int(best_scenario.get("savings_period_months", assumptions.get("planning_months", 1)) or 1)
     battery_kw = float(best_scenario["battery_kw"])
     battery_kwh = float(best_scenario["battery_kwh"])
     solar_kwp = float(best_scenario["solar_kwp"])
@@ -115,13 +122,12 @@ def build_optimization_explanation(
     )
 
     if not sensitivity.empty and "savings_rm" in sensitivity.columns:
-        base_rows = sensitivity.loc[sensitivity["sensitivity_id"] == "base", "savings_rm"]
-        base_savings = float(base_rows.iloc[0]) if not base_rows.empty else savings
-        min_savings = float(sensitivity["savings_rm"].min())
-        max_savings = float(sensitivity["savings_rm"].max())
+        savings_column = "annual_savings_rm" if "annual_savings_rm" in sensitivity.columns else "savings_rm"
+        min_savings = float(sensitivity[savings_column].min())
+        max_savings = float(sensitivity[savings_column].max())
         sensitivity_text = (
             f"Across the active +/-10% tariff and CAPEX checks, savings range from "
-            f"RM {min_savings:,.0f} to RM {max_savings:,.0f} versus RM {base_savings:,.0f} under current assumptions. "
+            f"RM {min_savings:,.0f}/yr to RM {max_savings:,.0f}/yr versus RM {annual_savings:,.0f}/yr under current assumptions. "
             "Growth rate, EV load, and planning months update through a full Apply rerun."
         )
 
@@ -133,12 +139,14 @@ def build_optimization_explanation(
         ),
         "what_changed": (
             f"For {site_id}, the selected scenario lowers the modeled bill from RM {bill_before:,.0f} "
-            f"to RM {bill_after:,.0f}, saves RM {savings:,.0f}, and reduces MD from {md_before:.0f} kW to {md_after:.0f} kW."
+            f"to RM {bill_after:,.0f} across the {period_months}-month planning period, saves RM {savings:,.0f} "
+            f"in-period or RM {annual_savings:,.0f}/yr annualized, and reduces MD from {md_before:.0f} kW to {md_after:.0f} kW."
         ),
         "why_this_scenario": (
             f"The selected mix uses {battery_kw:.0f} kW / {battery_kwh:.0f} kWh battery capacity"
             f"{' plus ' + format(solar_kwp, '.0f') + ' kWp solar' if solar_kwp > 0 else ''} because it gives the strongest savings result "
-            f"with an estimated payback of {payback_text} under the active assumptions."
+            f"with RM {capex:,.0f} estimated CAPEX, RM {monthly_savings:,.0f} average monthly savings, "
+            f"and an estimated payback of {payback_text} under the active assumptions."
         ),
         "savings_sensitivity": sensitivity_text,
         "confidence_flags": flags,

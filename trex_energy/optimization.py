@@ -21,6 +21,7 @@ class OptimizationConfig:
     battery_capex_rm_per_kwh: float = 900.0
     solar_capex_rm_per_kwp: float = 3200.0
     max_scenarios: int = 27
+    savings_period_months: int = 1
     use_md_risk_envelope: bool = False
     md_risk_basis: str = "expected"
     tariff: TariffConfig = field(default_factory=TariffConfig)
@@ -172,21 +173,41 @@ def _apply_battery(profile: pd.DataFrame, battery_kw: float, battery_kwh: float)
     return working
 
 
-def _scenario_payback_months(
-    savings_rm: float,
+def _scenario_capex_rm(
     battery_kw: float,
     battery_kwh: float,
     solar_kwp: float,
     config: OptimizationConfig,
-) -> float | None:
-    capex = (
+) -> float:
+    return (
         battery_kw * config.battery_capex_rm_per_kw
         + battery_kwh * config.battery_capex_rm_per_kwh
         + solar_kwp * config.solar_capex_rm_per_kwp
     )
-    if capex <= 0 or savings_rm <= 0:
+
+
+def _scenario_payback_months(
+    monthly_savings_rm: float,
+    capex: float,
+) -> float | None:
+    if capex <= 0 or monthly_savings_rm <= 0:
         return None
-    return capex / savings_rm
+    return capex / monthly_savings_rm
+
+
+def _valid_scenario_combinations(config: OptimizationConfig) -> list[tuple[float, float, float]]:
+    combos: list[tuple[float, float, float]] = []
+    for battery_kw, battery_kwh, solar_kwp in product(
+        config.battery_kw_options,
+        config.battery_kwh_options,
+        config.solar_kwp_options,
+    ):
+        has_battery_power = battery_kw > 0
+        has_battery_energy = battery_kwh > 0
+        if has_battery_power != has_battery_energy:
+            continue
+        combos.append((battery_kw, battery_kwh, solar_kwp))
+    return combos
 
 
 def evaluate_site_scenarios(
@@ -202,14 +223,18 @@ def evaluate_site_scenarios(
     best_schedule = None
     best_row = None
 
-    combos = list(product(config.battery_kw_options, config.battery_kwh_options, config.solar_kwp_options))
+    combos = _valid_scenario_combinations(config)
+    savings_period_months = max(int(config.savings_period_months or 1), 1)
     for scenario_index, (battery_kw, battery_kwh, solar_kwp) in enumerate(combos[: config.max_scenarios], start=1):
         solar_profile = _apply_solar(shifted, solar_kwp, config.base_solar_kwp)
         optimized = _apply_battery(solar_profile, battery_kw, battery_kwh)
         optimized_bill = calculate_bill_components(_bill_input_frame(optimized, "optimized_kw_import"), config.tariff)
         savings_rm = baseline_bill.total_cost_rm - optimized_bill.total_cost_rm
+        monthly_savings_rm = savings_rm / savings_period_months
+        annual_savings_rm = monthly_savings_rm * 12.0
+        capex_rm = _scenario_capex_rm(battery_kw, battery_kwh, solar_kwp, config)
         md_reduction = baseline_bill.md_kw - optimized_bill.md_kw
-        payback_months = _scenario_payback_months(savings_rm, battery_kw, battery_kwh, solar_kwp, config)
+        payback_months = _scenario_payback_months(monthly_savings_rm, capex_rm)
         row = {
             "scenario_id": f"scenario_{scenario_index}",
             "risk_basis": "p95" if config.use_md_risk_envelope else str(config.md_risk_basis),
@@ -219,6 +244,10 @@ def evaluate_site_scenarios(
             "bill_before_rm": float(baseline_bill.total_cost_rm),
             "bill_after_rm": float(optimized_bill.total_cost_rm),
             "savings_rm": float(savings_rm),
+            "monthly_savings_rm": float(monthly_savings_rm),
+            "annual_savings_rm": float(annual_savings_rm),
+            "capex_rm": float(capex_rm),
+            "savings_period_months": savings_period_months,
             "md_before": float(baseline_bill.md_kw),
             "md_after": float(optimized_bill.md_kw),
             "peak_reduction_pct": float((md_reduction / baseline_bill.md_kw) * 100.0) if baseline_bill.md_kw else 0.0,
@@ -261,6 +290,7 @@ def evaluate_risk_basis_tradeoff(
             battery_capex_rm_per_kwh=base_config.battery_capex_rm_per_kwh,
             solar_capex_rm_per_kwp=base_config.solar_capex_rm_per_kwp,
             max_scenarios=base_config.max_scenarios,
+            savings_period_months=base_config.savings_period_months,
             use_md_risk_envelope=False,
             md_risk_basis=risk_basis,
             tariff=base_config.tariff,
@@ -294,6 +324,7 @@ def _copy_config_with(
         ),
         solar_capex_rm_per_kwp=config.solar_capex_rm_per_kwp if solar_capex_rm_per_kwp is None else solar_capex_rm_per_kwp,
         max_scenarios=config.max_scenarios,
+        savings_period_months=config.savings_period_months,
         use_md_risk_envelope=config.use_md_risk_envelope,
         md_risk_basis=config.md_risk_basis,
         tariff=config.tariff if tariff is None else tariff,
@@ -378,6 +409,10 @@ def evaluate_assumption_sensitivity(
                 "changed_assumption": changed_assumption,
                 "change_pct": change_pct,
                 "savings_rm": float(best["savings_rm"]),
+                "monthly_savings_rm": float(best["monthly_savings_rm"]),
+                "annual_savings_rm": float(best["annual_savings_rm"]),
+                "capex_rm": float(best["capex_rm"]),
+                "savings_period_months": int(best["savings_period_months"]),
                 "payback_months": best["payback_months"],
                 "bill_before_rm": float(best["bill_before_rm"]),
                 "bill_after_rm": float(best["bill_after_rm"]),

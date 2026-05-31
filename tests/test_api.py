@@ -38,6 +38,15 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:5173")
 
+    def test_api_allows_vercel_frontend_origins_for_cors(self) -> None:
+        response = self.client.get(
+            "/api/health",
+            headers={"Origin": "https://peak-logic.vercel.app"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "https://peak-logic.vercel.app")
+
     def test_bundled_analysis_returns_real_forecast_and_optimization_payload(self) -> None:
         sites = self.client.get("/api/bundled-sites").json()["sites"]
 

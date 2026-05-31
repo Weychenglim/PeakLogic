@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+docs/
+notebooks/
+PROJECT_STATUS.md
+PROJECT_REQUIREMENTS.md
+ARCHITECTURE_AND_CODING_DESIGN.md

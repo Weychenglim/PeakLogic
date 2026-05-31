@@ -101,7 +101,7 @@ export function ExecutiveSummary({ analysis, loading, loadingStep, error }: Exec
         ))}
       </div>
 
-      <div className="bg-surface-container-lowest p-8 rounded-xl shadow-sm border border-outline-variant/10 space-y-6">
+      <div className="mt-20 bg-surface-container-lowest p-8 rounded-xl shadow-sm border border-outline-variant/10 space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h4 className="font-bold text-lg font-headline">Schedule Impact Preview</h4>

@@ -1,0 +1,37 @@
+site_id,site_type,light_regime,horizon_bucket,actual_peak_regime,rows,mean_error_kw,mean_abs_error_kw,max_abs_error_kw
+2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,9,-256.8857199265525,264.50099331782,590.0986368154068
+4. Load Profile (With Solar) Mi2,solar,daylight,late,actual_peak,4,-257.7213495780341,257.7213495780341,347.1952641802118
+2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,26,-117.07949578116299,218.55479337763157,527.6393652554295
+4. Load Profile (With Solar) Mi2,solar,night,late,actual_peak,33,-216.11710543877282,216.11710543877282,700.4936792117325
+4. Load Profile (With Solar) Mi2,solar,night,early,actual_peak,11,-203.4048689275365,203.4048689275365,308.84630698909154
+2. Load Profile (No Solar) E,non_solar,night,late,non_peak,121,33.36442483692932,169.29426234380858,473.5283921419011
+4. Load Profile (With Solar) Mi2,solar,daylight,middle,actual_peak,2,-167.60229776437882,167.60229776437882,228.50209109993716
+1. Load Profile (With Solar Installed) SoL,solar,night,early,actual_peak,6,150.4170105830802,160.71885439134576,360.4858937918754
+2. Load Profile (No Solar) E,non_solar,night,early,actual_peak,8,-139.03518488614935,159.03219422505208,410.6757243940549
+4. Load Profile (With Solar) Mi2,solar,night,early,non_peak,99,-50.80275511311378,152.9993721251345,540.3346235188843
+2. Load Profile (No Solar) E,non_solar,daylight,early,actual_peak,6,-109.9909054863407,152.05967801708377,203.8954290143214
+4. Load Profile (With Solar) Mi2,solar,daylight,middle,non_peak,158,36.468202000956346,149.32452375835672,577.9213205488329
+4. Load Profile (With Solar) Mi2,solar,night,late,non_peak,97,11.37646741559993,148.71654828773492,743.2982810046151
+2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,28,9.760322835800812,147.0483327701568,496.1620972314861
+2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,134,14.873813341911978,144.08396328456155,575.3237060378767
+4. Load Profile (With Solar) Mi2,solar,daylight,late,non_peak,26,57.390890068159585,142.73651070710855,322.6551850831065
+4. Load Profile (With Solar) Mi2,solar,daylight,early,non_peak,50,11.774075440034572,137.2567454395447,613.408087109078
+1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,non_peak,122,27.762256137205082,129.40272013811528,519.1323545955256
+2. Load Profile (No Solar) E,non_solar,night,early,non_peak,102,23.263973500728493,126.86880116027498,431.57228736725483
+2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,44,16.98724106648712,117.72221900526043,420.86957909531986
+1. Load Profile (With Solar Installed) SoL,solar,night,late,non_peak,122,-12.563871309621323,114.91144123131497,570.7522660783292
+1. Load Profile (With Solar Installed) SoL,solar,daylight,late,non_peak,28,-13.311204173708504,108.1725293875851,336.86656301195546
+1. Load Profile (With Solar Installed) SoL,solar,night,early,non_peak,104,-50.57373638435234,104.79780657096559,456.25117843583564
+1. Load Profile (With Solar Installed) SoL,solar,daylight,early,non_peak,48,-18.65424122432916,103.33789150956733,334.4896615880271
+2. Load Profile (No Solar) E,non_solar,daylight,late,actual_peak,2,-88.65190249776401,90.9276244643479,179.5795269621119
+1. Load Profile (With Solar Installed) SoL,solar,daylight,middle,actual_peak,38,-79.92046537330107,89.76268154274536,353.18399999999997
+3. Load Profile (No Solar) SuN,non_solar,daylight,middle,actual_peak,47,-39.51357987097048,73.68169816370063,224.36548035408268
+3. Load Profile (No Solar) SuN,non_solar,daylight,late,non_peak,27,-1.2037102378046585,71.95015141210465,206.27010336416143
+3. Load Profile (No Solar) SuN,non_solar,daylight,middle,non_peak,113,-26.514901181181614,67.06840842022494,220.05224012080714
+1. Load Profile (With Solar Installed) SoL,solar,daylight,early,actual_peak,2,-49.134818161657904,49.134818161657904,57.87232595699777
+1. Load Profile (With Solar Installed) SoL,solar,daylight,late,actual_peak,2,-47.23607804784683,47.23607804784683,84.56254129792148
+3. Load Profile (No Solar) SuN,non_solar,daylight,late,actual_peak,3,-9.623457591468073,35.9355857035364,63.93936906615994
+3. Load Profile (No Solar) SuN,non_solar,night,late,non_peak,130,-0.34725244435950375,18.360597474879537,161.94497590892973
+1. Load Profile (With Solar Installed) SoL,solar,night,late,actual_peak,8,14.393128444888694,14.393128444888694,23.546718855357028
+3. Load Profile (No Solar) SuN,non_solar,daylight,early,non_peak,50,-5.9267995467646415,13.378870398514557,67.59436081004556
+3. Load Profile (No Solar) SuN,non_solar,night,early,non_peak,110,-4.026271895550199,6.4105479001970105,21.913878658600034

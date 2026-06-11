@@ -89,6 +89,63 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("confidence_flags", explanation)
         self.assertTrue(any(flag["level"] == "ok" for flag in explanation["confidence_flags"]))
 
+    def test_decision_explainability_uses_model_outputs(self) -> None:
+        import pandas as pd
+
+        from trex_energy.reporting import build_decision_explainability
+
+        forecast = pd.DataFrame(
+            [
+                {
+                    "interval_end": pd.Timestamp("2026-03-03 12:30:00"),
+                    "forecast_kw_import": 250.0,
+                    "md_risk_envelope_kw": 280.0,
+                    "is_peak_risk_overlay": True,
+                    "estimated_existing_solar_kw": 0.0,
+                },
+                {
+                    "interval_end": pd.Timestamp("2026-03-03 20:00:00"),
+                    "forecast_kw_import": 90.0,
+                    "md_risk_envelope_kw": 170.0,
+                    "is_peak_risk_overlay": False,
+                    "estimated_existing_solar_kw": 0.0,
+                },
+            ]
+        )
+        best = {
+            "scenario_id": "battery_solar",
+            "risk_basis": "p95",
+            "md_before": 500.0,
+            "md_after": 420.0,
+            "peak_reduction_pct": 16.0,
+            "battery_kw": 100.0,
+            "battery_kwh": 200.0,
+            "solar_kwp": 50.0,
+            "annual_savings_rm": 36000.0,
+            "capex_rm": 280000.0,
+            "payback_months": 93.3,
+        }
+        assumptions = {"planning_months": 1, "md_rate_rm_per_kw": 97.06}
+        sensitivity = pd.DataFrame(
+            [
+                {"sensitivity_id": "base", "annual_savings_rm": 36000.0},
+                {"sensitivity_id": "md_rate_plus_10", "annual_savings_rm": 39000.0},
+                {"sensitivity_id": "solar_capex_plus_10", "annual_savings_rm": 35000.0},
+            ]
+        )
+
+        explainability = build_decision_explainability(forecast, best, assumptions, sensitivity)
+
+        self.assertIn("headline", explainability)
+        self.assertIn("drivers", explainability)
+        self.assertIn("model_factors", explainability)
+        self.assertEqual(len(explainability["drivers"]), 3)
+        self.assertTrue(any("Mar 3" in item["detail"] for item in explainability["drivers"]))
+        self.assertTrue(any("100 kW" in item["value"] for item in explainability["drivers"]))
+        self.assertTrue(any("solar" in factor.lower() for factor in explainability["model_factors"]))
+        self.assertNotIn("external LLM", explainability["summary"])
+        self.assertNotIn("API key", explainability["summary"])
+
 
 if __name__ == "__main__":
     unittest.main()

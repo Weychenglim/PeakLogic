@@ -1,0 +1,15 @@
+model,site_id,site_type,light_regime,horizon_bucket,actual_peak_regime,rows,mean_error_kw,mean_abs_error_kw,max_abs_error_kw
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,3,-596.96107825674,596.96107825674,635.2944115900734
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,2,-546.7944115900734,546.7944115900734,549.2944115900734
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,13,-348.2174885131504,348.2174885131504,537.2944115900734
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,late,non_peak,11,-335.2676941773468,335.2676941773468,519.2944115900734
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,3,-290.62774492340674,290.62774492340674,364.2944115900734
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,early,non_peak,11,-266.2035024991643,266.2035024991643,464.2944115900734
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,middle,actual_peak,3,-203.54962239129122,203.54962239129122,233.18633434178196
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,5,178.43937612317626,178.43937612317626,249.25077336700747
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,late,actual_peak,2,-170.5228057642264,170.5228057642264,186.56871290922254
+direct_lgbm_p50_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,early,non_peak,5,-165.4944115900734,165.4944115900734,310.2944115900734
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,early,non_peak,11,87.39357332073791,128.93677723309006,320.12973237020856
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,middle,non_peak,13,13.546460467419296,110.2553922483243,223.81366565821804
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,night,late,non_peak,11,15.49239707931187,78.93879157023224,198.37896837396374
+direct_lgbm_p90_tiny_e_fold3,2. Load Profile (No Solar) E,non_solar,daylight,late,non_peak,3,72.70118159816161,73.47609224133559,168.39395642910745

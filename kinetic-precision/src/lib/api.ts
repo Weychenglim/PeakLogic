@@ -117,6 +117,21 @@ export interface OptimizationExplanation {
   confidence_flags: OptimizationConfidenceFlag[];
 }
 
+export interface ExplainabilityDriver {
+  label: string;
+  value: string;
+  detail: string;
+  tone: 'risk' | 'asset' | 'finance' | 'confidence' | string;
+}
+
+export interface DecisionExplainability {
+  headline: string;
+  summary: string;
+  drivers: ExplainabilityDriver[];
+  model_factors: string[];
+  sensitivity_notes: string[];
+}
+
 export interface SchedulePoint {
   interval_end: string;
   baseline_kw_import: number;
@@ -146,6 +161,7 @@ export interface AnalysisResult {
     schedule_preview: SchedulePoint[];
     sensitivity: OptimizationSensitivity[];
     explanation: OptimizationExplanation;
+    explainability?: DecisionExplainability;
   };
   executive_summary: string;
   exports: {
@@ -153,6 +169,15 @@ export interface AnalysisResult {
     forecast_csv: string;
     scenario_summary_csv: string;
   };
+}
+
+export type AssistantContext = Record<string, unknown>;
+
+export interface AssistantResponse {
+  answer: string;
+  sources: string[];
+  mode: 'grounded' | 'openai' | string;
+  suggested_questions: string[];
 }
 
 export interface PlanningAssumptions {
@@ -181,7 +206,7 @@ export const DEFAULT_ASSUMPTIONS: PlanningAssumptions = {
   solar_capex_rm_per_kwp: 3200,
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 async function parseJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -244,6 +269,15 @@ export async function uploadAnalysis(file: File, assumptions = DEFAULT_ASSUMPTIO
     body: form,
   });
   return parseJson<AnalysisResult>(response);
+}
+
+export async function askAssistant(question: string, context: AssistantContext): Promise<AssistantResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/assistant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question, context }),
+  });
+  return parseJson<AssistantResponse>(response);
 }
 
 export function downloadCsv(filename: string, csv: string) {

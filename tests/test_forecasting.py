@@ -204,6 +204,20 @@ class ForecastingTests(unittest.TestCase):
             check_names=False,
         )
 
+    def test_peak_risk_overlay_requires_material_peak_load(self) -> None:
+        from trex_energy.forecasting import forecast_monthly_planning_profile
+        from trex_energy.ingestion import load_site_workbook
+
+        frame, _ = load_site_workbook(DATA_FILES[2])
+
+        forecast = forecast_monthly_planning_profile(frame, months=1)
+        midday_peak = forecast.loc[forecast["interval_end"].eq(pd.Timestamp("2026-03-03 12:30:00"))].iloc[0]
+        lower_evening_risk = forecast.loc[forecast["interval_end"].eq(pd.Timestamp("2026-03-03 20:00:00"))].iloc[0]
+
+        self.assertTrue(bool(midday_peak["is_peak_risk_overlay"]))
+        self.assertGreater(float(midday_peak["md_risk_envelope_kw"]), float(lower_evening_risk["md_risk_envelope_kw"]))
+        self.assertFalse(bool(lower_evening_risk["is_peak_risk_overlay"]))
+
     def test_long_horizon_model_returns_monthly_planning_contract(self) -> None:
         from trex_energy.forecasting import forecast_long_horizon_model_profile
 

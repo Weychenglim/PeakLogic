@@ -195,7 +195,11 @@ def _add_peak_risk_overlay(forecast: pd.DataFrame) -> pd.DataFrame:
     smoothed = raw_score.rolling(window=3, min_periods=1, center=True).max()
     tagged["peak_risk_overlay_score"] = _normalized_score(smoothed).clip(lower=0.0, upper=1.0)
     threshold = float(tagged["peak_risk_overlay_score"].quantile(0.80))
-    tagged["is_peak_risk_overlay"] = tagged["peak_risk_overlay_score"] >= threshold
+    material_peak_threshold = float(risk_basis.quantile(0.90))
+    tagged["is_peak_risk_overlay"] = (
+        (tagged["peak_risk_overlay_score"] >= threshold)
+        & (risk_basis >= material_peak_threshold)
+    )
     return tagged
 
 

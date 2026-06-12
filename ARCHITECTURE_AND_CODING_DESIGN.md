@@ -178,7 +178,8 @@ Responsibilities:
 - render a floating Dashboard Assistant only when an active analysis exists, with suggested questions limited to site explanation, optimizer reasoning, option tradeoffs, and approval checks
 - display assistant response provenance in the chat UI: API mode when a provider responds, dashboard data mode when deterministic fallback is used
 - normalize assistant text before rendering so provider markdown headings, bold markers, and bullet markers do not appear as raw characters in the chat panel
-- build a compact assistant context in React from selected metadata, profile, validation, assumptions, best scenario, and scenario evidence; do not send CSV exports or full raw history to the assistant endpoint
+- render structured suggested-action buttons under assistant answers; each action must target only the fixed dashboard allow-list (`profile`, `forecast`, `optimization`, `summary`, `settings`)
+- build a compact assistant context in React from selected metadata, profile, validation, assumptions, Forecast & Risk top-window evidence, best scenario, and scenario evidence; do not send CSV exports or full raw history to the assistant endpoint
 
 ### React State Ownership
 Responsibilities:
@@ -195,6 +196,9 @@ Responsibilities:
 - keep legacy OpenAI Responses API support available through `AI_ASSISTANT_PROVIDER=openai`, `OPENAI_API_KEY`, and optional `OPENAI_ASSISTANT_MODEL`
 - fall back to deterministic grounded answers from `trex_energy.assistant` when no provider is configured or provider calls fail
 - avoid judge-facing presentation-script generation in default suggested prompts and scope
+- generate suggested actions from app-owned deterministic logic rather than free-form provider text, so API mode cannot invent invalid navigation targets
+- route high-risk event/window questions to Forecast & Risk top-window evidence before generic approval, tariff, or CAPEX risk checks
+- route broad next-step questions to a grounded action-plan answer that combines forecast risk, option comparison, assumption checks, and data-quality review
 
 ### Export / Reporting
 Responsibilities:

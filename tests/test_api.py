@@ -29,7 +29,7 @@ class ApiTests(unittest.TestCase):
                 "AI_ASSISTANT_BASE_URL=https://example.test/chat/completions\n",
                 encoding="utf-8",
             )
-            with patch.dict(os.environ, {"AI_ASSISTANT_API_KEY": "existing"}, clear=False):
+            with patch.dict(os.environ, {"AI_ASSISTANT_API_KEY": "existing"}, clear=True):
                 _load_local_env(env_path)
 
                 self.assertEqual(os.environ["AI_ASSISTANT_API_KEY"], "existing")
@@ -224,6 +224,110 @@ class ApiTests(unittest.TestCase):
         self.assertIn("23 kW", payload["answer"])
         self.assertIn("Options Considered", payload["sources"])
         self.assertNotIn("presentation script", payload["answer"].lower())
+        self.assertIn("suggested_actions", payload)
+        self.assertGreaterEqual(len(payload["suggested_actions"]), 1)
+        self.assertIn(
+            payload["suggested_actions"][0]["target_tab"],
+            {"profile", "forecast", "optimization", "summary", "settings"},
+        )
+        self.assertIn("label", payload["suggested_actions"][0])
+
+    def test_assistant_answers_high_risk_events_from_forecast_windows(self) -> None:
+        with patch("api._assistant_provider_answer", return_value=None):
+            response = self.client.post(
+                "/api/assistant",
+                json={
+                    "question": "What is the most high risk events",
+                    "context": {
+                        "site_id": "Test Site",
+                        "forecast": {
+                            "top_risk_windows": [
+                                {
+                                    "rank": 1,
+                                    "day": "Nov 5",
+                                    "time_window": "10:30 AM - 12:30 PM",
+                                    "label": "Operational peak",
+                                    "level": "critical",
+                                    "peak_kw": 973,
+                                    "score": 0.96,
+                                    "action": "Shift flexible load",
+                                },
+                                {
+                                    "rank": 2,
+                                    "day": "Nov 6",
+                                    "time_window": "02:30 PM - 04:30 PM",
+                                    "label": "Operational peak",
+                                    "level": "risk",
+                                    "peak_kw": 940,
+                                    "score": 0.82,
+                                    "action": "Shift flexible load",
+                                },
+                            ]
+                        },
+                        "validation": {"gap_count": 14, "missing_value_count": 0},
+                        "assumptions": {
+                            "md_rate_rm_per_kw": 97.06,
+                            "battery_capex_rm_per_kwh": 900,
+                            "solar_capex_rm_per_kwp": 3200,
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["mode"], "grounded")
+        self.assertIn("Nov 5", payload["answer"])
+        self.assertIn("10:30 AM - 12:30 PM", payload["answer"])
+        self.assertIn("973 kW", payload["answer"])
+        self.assertIn("Forecast & Risk", payload["sources"])
+        self.assertEqual(payload["suggested_actions"][0]["target_tab"], "forecast")
+        self.assertNotIn("CAPEX", payload["answer"])
+        self.assertNotIn("assumptions", payload["answer"].lower())
+
+    def test_assistant_gives_step_by_step_next_actions(self) -> None:
+        with patch("api._assistant_provider_answer", return_value=None):
+            response = self.client.post(
+                "/api/assistant",
+                json={
+                    "question": "what should i do then step by step guide",
+                    "context": {
+                        "site_id": "Test Site",
+                        "forecast": {
+                            "top_risk_windows": [
+                                {
+                                    "day": "Nov 5",
+                                    "time_window": "10:30 AM - 12:30 PM",
+                                    "peak_kw": 973,
+                                    "level": "critical",
+                                }
+                            ]
+                        },
+                        "validation": {"gap_count": 14, "missing_value_count": 0},
+                        "optimization": {
+                            "best_scenario": {
+                                "battery_kw": 100,
+                                "battery_kwh": 400,
+                                "solar_kwp": 200,
+                                "md_after": 832,
+                                "annual_savings_rm": 882448,
+                            }
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["mode"], "grounded")
+        self.assertIn("1. Start in Forecast & Risk", payload["answer"])
+        self.assertIn("Nov 5", payload["answer"])
+        self.assertIn("100 kW / 400 kWh battery", payload["answer"])
+        self.assertIn("832 kW", payload["answer"])
+        self.assertIn("RM 882,448/yr", payload["answer"])
+        self.assertIn("14 gaps", payload["answer"])
+        self.assertEqual(payload["suggested_actions"][0]["target_tab"], "forecast")
+        self.assertIn("Options Considered", payload["sources"])
 
     def test_assistant_supports_generic_chat_completion_provider_env(self) -> None:
         provider_response = Mock()
@@ -268,6 +372,7 @@ class ApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["mode"], "provider")
         self.assertEqual(payload["answer"], "Provider answer grounded in the dashboard context.")
+        self.assertGreaterEqual(len(payload["suggested_actions"]), 1)
         post.assert_called_once()
         request_payload = post.call_args.kwargs["json"]
         self.assertEqual(request_payload["model"], "glm-5.1")
@@ -304,6 +409,7 @@ class ApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["mode"], "grounded")
         self.assertIn("Test Site", payload["answer"])
+        self.assertGreaterEqual(len(payload["suggested_actions"]), 1)
 
 
 if __name__ == "__main__":

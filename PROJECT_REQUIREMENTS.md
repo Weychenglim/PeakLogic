@@ -109,6 +109,9 @@ The app must:
 - provide a root backend `.env.example` for FastAPI-only secrets and keep the Vite `.env.example` limited to public frontend settings
 - exclude judge-facing presentation scripts from the assistant's suggested questions and default scope
 - show whether each assistant answer came from API mode or dashboard-data fallback mode, and render assistant answers as clean readable text without raw markdown bullets/headings
+- include 1-3 assistant suggested actions per response, each mapped to a safe dashboard tab such as Site Profile, Forecast & Risk, Optimization, Executive Summary, or Settings
+- answer high-risk event/window questions from Forecast & Risk top-window evidence, including ranked day/time, peak kW, risk level, and operational action, instead of falling back to generic tariff or CAPEX sensitivity language
+- answer next-step and step-by-step user questions as a practical action plan grounded in Forecast & Risk, Options Considered, assumptions, and data-quality checks
 
 Current implementation note:
 - The app now exports normalized data, forecast tables, scenario summaries, and bundled site comparison summaries as CSV files from the dashboard.
@@ -118,6 +121,9 @@ Current implementation note:
 - The React Optimization page now turns scenario outputs into an Explainable AI panel under Options Considered, comparing the selected plan against cheaper and larger alternatives, explaining dispatch logic, and avoiding duplication of the visible metric cards.
 - The dashboard now includes a floating AI Assistant for active analyses. It sends only a compact dashboard context to FastAPI, answers with a deterministic grounded fallback when no provider is configured, and can use a server-side OpenAI key only when explicitly enabled.
 - The assistant panel now uses a larger reading surface, displays the answer mode, and cleans provider markdown formatting before showing messages.
+- Assistant responses now include clickable suggested actions that navigate users to the relevant dashboard section instead of leaving the answer as a dead-end chat message.
+- The assistant context now includes Forecast & Risk Top Risk Windows, so API mode and dashboard-data fallback can answer questions about the highest-risk demand events using the same ranked evidence shown in the app.
+- The assistant fallback now handles broad next-step questions such as "what should I do" or "step by step guide" with an action plan instead of repeating the site overview.
 - Optimization finance outputs now distinguish planning-period savings, average monthly savings, annualized savings, CAPEX, and payback months; the UI uses annualized savings for judge-facing summary cards.
 - The Optimization tab now keeps the editable assumptions and Apply rerun flow, but uses a simpler decision-first layout with compact scenario comparison and a decision checklist instead of a dense sensitivity-card grid.
 - The Optimization decision checklist now estimates PV module count, panel area, module weight, and inverter count from the Trina Vertex N 590-620W and Sigen Hybrid Inverter Gen 2 datasheets when new solar is selected.

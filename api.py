@@ -104,6 +104,7 @@ class AssistantResponse(BaseModel):
     sources: list[str]
     mode: str
     suggested_questions: list[str]
+    suggested_actions: list[dict[str, str]]
 
 
 def _json_value(value: Any) -> Any:
@@ -355,7 +356,8 @@ def _assistant_provider_answer(question: str, context: dict[str, Any], grounded_
         "You are PeakLogic's read-only dashboard assistant. Answer only from the provided dashboard context "
         "and the grounded fallback answer. Do not generate judge-facing scripts, pitch scripts, or presentation scripts. "
         "If the data is insufficient, say what is missing. Keep the answer simple and under 120 words. "
-        "Use plain text sentences only. Do not use markdown headings, bold markers, bullet markers, or numbered lists."
+        "Use plain text sentences only. Do not use markdown headings, bold markers, or bullet markers. "
+        "Use short numbered steps only when the user asks for a step-by-step guide or next actions."
     )
 
     if generic_api_key and generic_base_url:

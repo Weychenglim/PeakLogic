@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
-import { Bot, CheckCircle2, Database, Loader2, MessageSquareText, Send, Sparkles, X } from 'lucide-react';
-import { askAssistant, type AnalysisResult, type AssistantContext } from '../lib/api';
+import { ArrowRight, Bot, CheckCircle2, Database, Loader2, MessageSquareText, Send, Sparkles, X } from 'lucide-react';
+import { askAssistant, type AnalysisResult, type AssistantContext, type AssistantSuggestedAction } from '../lib/api';
 import { cn } from '../lib/utils';
 import { buildScenarioDecisionEvidence } from './Optimization';
+import { buildTopRiskWindowItems } from './forecastWindow';
 
 type AssistantMessage = {
   role: 'assistant' | 'user';
   content: string;
   sources?: string[];
   mode?: string;
+  actions?: AssistantSuggestedAction[];
 };
 
 export const ASSISTANT_SUGGESTED_QUESTIONS = [
@@ -17,6 +19,13 @@ export const ASSISTANT_SUGGESTED_QUESTIONS = [
   'Why not the cheaper option?',
   'What should we verify before approving?',
 ];
+
+export const ALLOWED_ASSISTANT_ACTION_TABS = ['profile', 'forecast', 'optimization', 'summary', 'settings'] as const;
+type AssistantActionTab = typeof ALLOWED_ASSISTANT_ACTION_TABS[number];
+
+function isAssistantActionTab(value: string): value is AssistantActionTab {
+  return (ALLOWED_ASSISTANT_ACTION_TABS as readonly string[]).includes(value);
+}
 
 export function formatAssistantContent(content: string) {
   return content
@@ -56,6 +65,19 @@ export function buildAssistantContext(analysis: AnalysisResult): AssistantContex
       row_count: analysis.validation.row_count,
     },
     assumptions: analysis.assumptions,
+    forecast: {
+      metrics: analysis.forecast.metrics,
+      top_risk_windows: buildTopRiskWindowItems(analysis, 5).map(item => ({
+        rank: item.rank,
+        day: item.day,
+        time_window: item.timeWindow,
+        label: item.label,
+        level: item.level,
+        peak_kw: item.peakLoad,
+        score: item.score,
+        action: item.action,
+      })),
+    },
     optimization: {
       best_scenario: analysis.optimization.best_scenario,
       scenario_evidence: buildScenarioDecisionEvidence(analysis),
@@ -63,14 +85,20 @@ export function buildAssistantContext(analysis: AnalysisResult): AssistantContex
   };
 }
 
-export function DashboardAssistant({ analysis }: { analysis: AnalysisResult | null }) {
+export function DashboardAssistant({
+  analysis,
+  onNavigate,
+}: {
+  analysis: AnalysisResult | null;
+  onNavigate: (targetTab: AssistantActionTab) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       role: 'assistant',
-      content: 'Ask about the active site, optimizer reasoning, option tradeoffs, or approval checks.',
+      content: 'Ask for next steps, peak-risk events, optimizer reasoning, option tradeoffs, or approval checks.',
       sources: ['Current dashboard'],
       mode: 'grounded',
     },
@@ -94,6 +122,7 @@ export function DashboardAssistant({ analysis }: { analysis: AnalysisResult | nu
           content: response.answer,
           sources: response.sources,
           mode: response.mode,
+          actions: response.suggested_actions.filter(action => isAssistantActionTab(action.target_tab)),
         },
       ]);
     } catch (error) {
@@ -104,6 +133,7 @@ export function DashboardAssistant({ analysis }: { analysis: AnalysisResult | nu
           content: error instanceof Error ? error.message : 'Assistant is unavailable right now.',
           sources: ['Assistant API'],
           mode: 'grounded',
+          actions: [],
         },
       ]);
     } finally {
@@ -176,6 +206,32 @@ export function DashboardAssistant({ analysis }: { analysis: AnalysisResult | nu
                   )}>
                     Sources: {message.sources.join(', ')}
                   </p>
+                )}
+                {message.role === 'assistant' && message.actions && message.actions.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Suggested actions</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {message.actions.map(action => (
+                        <button
+                          key={`${action.target_tab}-${action.label}`}
+                          type="button"
+                          onClick={() => {
+                            if (isAssistantActionTab(action.target_tab)) {
+                              onNavigate(action.target_tab);
+                              setOpen(false);
+                            }
+                          }}
+                          className="flex items-start justify-between gap-3 rounded-lg border border-primary/10 bg-surface-container-lowest px-3 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary-fixed/35"
+                        >
+                          <span>
+                            <span className="block text-xs font-black text-on-surface">{action.label}</span>
+                            <span className="mt-0.5 block text-[10px] font-semibold leading-snug text-on-surface-variant">{action.reason}</span>
+                          </span>
+                          <ArrowRight size={14} className="mt-0.5 shrink-0 text-primary" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}

@@ -173,11 +173,18 @@ export interface AnalysisResult {
 
 export type AssistantContext = Record<string, unknown>;
 
+export interface AssistantSuggestedAction {
+  label: string;
+  target_tab: 'profile' | 'forecast' | 'optimization' | 'summary' | 'settings' | string;
+  reason: string;
+}
+
 export interface AssistantResponse {
   answer: string;
   sources: string[];
-  mode: 'grounded' | 'openai' | string;
+  mode: 'grounded' | 'openai' | 'provider' | string;
   suggested_questions: string[];
+  suggested_actions: AssistantSuggestedAction[];
 }
 
 export interface PlanningAssumptions {

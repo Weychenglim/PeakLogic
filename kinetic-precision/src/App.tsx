@@ -432,7 +432,7 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
-      <DashboardAssistant analysis={analysis} />
+      <DashboardAssistant analysis={analysis} onNavigate={setActiveTab} />
 
       {/* Global CSS for animations */}
       {waitingForProfileRedirect && (

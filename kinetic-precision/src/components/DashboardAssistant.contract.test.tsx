@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { ASSISTANT_SUGGESTED_QUESTIONS, buildAssistantContext, formatAssistantContent, modeLabel } from './DashboardAssistant';
+import { ALLOWED_ASSISTANT_ACTION_TABS, ASSISTANT_SUGGESTED_QUESTIONS, buildAssistantContext, formatAssistantContent, modeLabel } from './DashboardAssistant';
 import { DEFAULT_ASSUMPTIONS, type AnalysisResult } from '../lib/api';
 
 const analysis: AnalysisResult = {
@@ -34,7 +34,24 @@ const analysis: AnalysisResult = {
       short_horizon: {},
       monthly_planning: {},
     },
-    points: [],
+    points: [
+      {
+        interval_start: '2025-11-05T10:00:00',
+        interval_end: '2025-11-05T10:30:00',
+        forecast_kw_import: 973,
+        calibrated_p95_stress_kw: 973,
+        peak_risk_overlay_score: 0.96,
+        is_peak_risk_overlay: true,
+      },
+      {
+        interval_start: '2025-11-06T14:00:00',
+        interval_end: '2025-11-06T14:30:00',
+        forecast_kw_import: 940,
+        calibrated_p95_stress_kw: 940,
+        peak_risk_overlay_score: 0.82,
+        is_peak_risk_overlay: false,
+      },
+    ],
     preview: [],
   },
   optimization: {
@@ -112,6 +129,8 @@ const context = buildAssistantContext(analysis);
 assert.equal(context.site_id, 'Test Site');
 assert.equal(context.source_file, 'test.xlsx');
 assert.match(JSON.stringify(context.optimization), /Cheaper options/);
+assert.match(JSON.stringify(context.forecast), /top_risk_windows/);
+assert.match(JSON.stringify(context.forecast), /973/);
 assert.ok(ASSISTANT_SUGGESTED_QUESTIONS.some(question => /cheaper option/i.test(question)));
 assert.ok(
   ASSISTANT_SUGGESTED_QUESTIONS.every(question => !/judge|presentation|script/i.test(question)),
@@ -132,3 +151,4 @@ assert.deepEqual(formatted, [
 assert.equal(modeLabel('provider'), 'API mode');
 assert.equal(modeLabel('openai'), 'API mode');
 assert.equal(modeLabel('grounded'), 'Dashboard data mode');
+assert.deepEqual(ALLOWED_ASSISTANT_ACTION_TABS, ['profile', 'forecast', 'optimization', 'summary', 'settings']);

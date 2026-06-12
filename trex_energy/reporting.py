@@ -63,6 +63,117 @@ def _planning_basis_label(risk_basis: object) -> str:
     return "Expected-demand planning"
 
 
+def _format_kw(value: float) -> str:
+    return f"{max(0.0, float(value)):,.0f} kW"
+
+
+def _format_rm(value: float) -> str:
+    return f"RM {max(0.0, float(value)):,.0f}"
+
+
+def _format_peak_time(value: object) -> str:
+    timestamp = pd.Timestamp(value)
+    time_label = timestamp.strftime("%I:%M %p").lstrip("0")
+    return f"{timestamp.strftime('%b')} {timestamp.day}, {time_label}"
+
+
+def build_decision_explainability(
+    forecast: pd.DataFrame,
+    best_scenario: dict[str, object],
+    assumptions: dict[str, object],
+    sensitivity: pd.DataFrame,
+) -> dict[str, object]:
+    """Build deterministic recommendation rationale from model outputs."""
+    md_before = float(best_scenario["md_before"])
+    md_after = float(best_scenario["md_after"])
+    md_reduction = max(0.0, md_before - md_after)
+    battery_kw = float(best_scenario["battery_kw"])
+    battery_kwh = float(best_scenario["battery_kwh"])
+    solar_kwp = float(best_scenario["solar_kwp"])
+    annual_savings = float(best_scenario.get("annual_savings_rm", best_scenario.get("savings_rm", 0.0)))
+    capex = float(best_scenario.get("capex_rm", 0.0))
+    payback_months = best_scenario.get("payback_months")
+    planning_months = int(assumptions.get("planning_months", 1) or 1)
+    risk_basis = _planning_basis_label(best_scenario.get("risk_basis", "expected"))
+
+    peak_basis = "md_risk_envelope_kw" if "md_risk_envelope_kw" in forecast.columns else "forecast_kw_import"
+    peak_candidates = forecast.copy()
+    if "is_peak_risk_overlay" in peak_candidates.columns and bool(peak_candidates["is_peak_risk_overlay"].any()):
+        peak_candidates = peak_candidates.loc[peak_candidates["is_peak_risk_overlay"].astype(bool)].copy()
+    if peak_candidates.empty:
+        peak_candidates = forecast.copy()
+    peak_row = peak_candidates.sort_values(peak_basis, ascending=False).iloc[0] if not peak_candidates.empty else None
+    peak_value = float(peak_row[peak_basis]) if peak_row is not None else md_before
+    peak_time = _format_peak_time(peak_row["interval_end"]) if peak_row is not None and "interval_end" in peak_row else "the planning window"
+
+    solar_offset = 0.0
+    if "estimated_existing_solar_kw" in forecast.columns:
+        solar_offset = float(forecast["estimated_existing_solar_kw"].clip(lower=0.0).max())
+
+    battery_value = f"{battery_kw:.0f} kW" if battery_kw > 0 else "No battery"
+    solar_value = f"{solar_kwp:.0f} kWp solar" if solar_kwp > 0 else "No new solar"
+    payback_label = f"{float(payback_months):.1f} months" if payback_months is not None else "no CAPEX payback"
+    drivers = [
+        {
+            "label": "Peak",
+            "value": _format_kw(peak_value),
+            "detail": f"{peak_time} is the main forecast risk window used for sizing.",
+            "tone": "risk",
+        },
+        {
+            "label": "Battery",
+            "value": battery_value,
+            "detail": f"Discharge during peak windows to lower MD by {_format_kw(md_reduction)}.",
+            "tone": "asset",
+        },
+        {
+            "label": "Solar",
+            "value": f"{solar_value} / {_format_rm(annual_savings)}/yr",
+            "detail": f"PV cuts daytime import; current payback is {payback_label}.",
+            "tone": "finance",
+        },
+    ]
+
+    sensitivity_notes: list[str] = []
+    if not sensitivity.empty:
+        savings_column = "annual_savings_rm" if "annual_savings_rm" in sensitivity.columns else "savings_rm"
+        if savings_column in sensitivity.columns:
+            min_savings = float(sensitivity[savings_column].min())
+            max_savings = float(sensitivity[savings_column].max())
+            sensitivity_notes.append(f"Savings range: {_format_rm(min_savings)} to {_format_rm(max_savings)}/yr under +/-10% checks.")
+        if "payback_months" in sensitivity.columns and sensitivity["payback_months"].notna().any():
+            payback_values = sensitivity["payback_months"].dropna().astype(float)
+            sensitivity_notes.append(
+                f"Payback range: {payback_values.min():.1f} to {payback_values.max():.1f} months."
+            )
+    if not sensitivity_notes:
+        sensitivity_notes.append("Sensitivity table unavailable for this run.")
+
+    model_factors = [
+        f"{risk_basis}",
+        f"{planning_months}-month forecast window",
+        f"{_format_kw(md_reduction)} MD reduction",
+    ]
+    if solar_kwp > 0:
+        model_factors.append("Solar daytime offset")
+    elif solar_offset > 0:
+        model_factors.append("Existing solar offset")
+    if battery_kw > 0:
+        model_factors.append("Battery peak shaving")
+
+    return {
+        "headline": (
+            f"Use {battery_value.lower()} with {solar_value.lower()} to reduce MD by {_format_kw(md_reduction)}."
+        ),
+        "summary": (
+            f"The recommendation targets the {peak_time} risk window, then checks savings and payback against the active assumptions."
+        ),
+        "drivers": drivers,
+        "model_factors": model_factors,
+        "sensitivity_notes": sensitivity_notes,
+    }
+
+
 def build_optimization_explanation(
     site_id: str,
     best_scenario: dict[str, object],

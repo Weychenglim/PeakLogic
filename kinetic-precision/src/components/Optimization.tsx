@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Gauge, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingDown, WalletCards } from 'lucide-react';
+import { BrainCircuit, CheckCircle2, Gauge, RefreshCw, ShieldCheck, SlidersHorizontal, TrendingDown, WalletCards } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { EmptyAnalysis, ErrorCard, LoadingProgress, type LoadingStepId } from './AnalysisState';
 import type { AnalysisResult, PlanningAssumptions } from '../lib/api';
@@ -40,6 +40,10 @@ function planningBasisLabel(riskBasis: string) {
 
 function formatRm(value: number) {
   return `RM ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function formatKw(value: number) {
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} kW`;
 }
 
 function formatPayback(months: number | null) {
@@ -105,6 +109,107 @@ function uniqueScenarioHighlights(analysis: AnalysisResult) {
     seen.add(candidate.scenario.scenario_id);
     return true;
   });
+}
+
+export function buildRecommendationEvidence(explainability?: AnalysisResult['optimization']['explainability']) {
+  return explainability?.drivers ?? [];
+}
+
+type ScenarioDecisionEvidenceItem = {
+  label: string;
+  detail: string;
+};
+
+export function buildScenarioDecisionEvidence(analysis: AnalysisResult): {
+  summary: string;
+  items: ScenarioDecisionEvidenceItem[];
+  sensitivity: string[];
+} {
+  const best = analysis.optimization.best_scenario;
+  const scenarios = (analysis.optimization.scenarios.length > 0
+    ? analysis.optimization.scenarios
+    : [best]
+  ).filter(scenario => scenario.scenario_id !== best.scenario_id);
+  const testedCount = analysis.optimization.scenarios.length || 1;
+  const bestSavings = annualSavings(best);
+  const bestCapex = scenarioCapex(best);
+
+  const cheaperOption = scenarios
+    .filter(scenario => scenarioCapex(scenario) < bestCapex && annualSavings(scenario) > 0)
+    .sort((a, b) => annualSavings(b) - annualSavings(a))[0];
+  const largerOption = scenarios
+    .filter(scenario => scenarioCapex(scenario) > bestCapex)
+    .sort((a, b) => scenarioCapex(a) - scenarioCapex(b))[0];
+  const highestDispatchPoint = [...analysis.optimization.schedule_preview]
+    .sort((a, b) => Number(b.baseline_kw_import) - Number(a.baseline_kw_import))[0];
+
+  const items: ScenarioDecisionEvidenceItem[] = [
+    {
+      label: 'Ranking logic',
+      detail: `The model compared ${testedCount} tested combinations and picked the option where added annual value still justified the hardware cost under the active tariff and CAPEX assumptions.`,
+    },
+  ];
+
+  if (cheaperOption) {
+    const savingsGap = bestSavings - annualSavings(cheaperOption);
+    const capexPremium = bestCapex - scenarioCapex(cheaperOption);
+    const demandExposureGap = cheaperOption.md_after - best.md_after;
+    const demandText = demandExposureGap > 0
+      ? ` and left ${formatKw(demandExposureGap)} more peak-demand exposure`
+      : '';
+    items.push({
+      label: 'Cheaper options',
+      detail: savingsGap > 0
+        ? `The strongest lower-investment option saved ${formatRm(savingsGap)}/yr less${demandText}. The selected option costs ${formatRm(capexPremium)} more because that extra spend still buys stronger recurring value.`
+        : `A lower-investment option was available, but it did not improve the selected option's annual value under the current assumptions.`,
+    });
+  }
+
+  if (largerOption) {
+    const extraCapex = scenarioCapex(largerOption) - bestCapex;
+    const extraSavings = annualSavings(largerOption) - bestSavings;
+    const extraPeakProtection = best.md_after - largerOption.md_after;
+    const peakText = extraPeakProtection > 0 ? ` and ${formatKw(extraPeakProtection)} more peak protection` : '';
+    items.push({
+      label: 'Larger options',
+      detail: extraSavings > 0
+        ? `The nearest larger option costs ${formatRm(extraCapex)} more but adds only ${formatRm(extraSavings)}/yr${peakText}. That weaker incremental return is why it loses on payback efficiency.`
+        : `The nearest larger option costs ${formatRm(extraCapex)} more without improving annual savings, so the extra hardware is not justified by the model output.`,
+    });
+  }
+
+  if (highestDispatchPoint) {
+    const batteryDischarge = Number(highestDispatchPoint.battery_discharge_kw ?? 0);
+    const solarOffset = Number(highestDispatchPoint.solar_offset_kw ?? 0);
+    const dispatchParts = [
+      batteryDischarge > 0 ? `${formatKw(batteryDischarge)} controllable battery discharge` : null,
+      solarOffset > 0 ? `${formatKw(solarOffset)} PV offset` : null,
+    ].filter(Boolean);
+    if (dispatchParts.length > 0) {
+      items.push({
+        label: 'Dispatch proof',
+        detail: `At the highest modeled dispatch sample, the optimizer uses ${dispatchParts.join(' plus ')}. This is the operational reason it combines dispatchable storage with PV instead of relying on PV timing alone.`,
+      });
+    }
+  }
+
+  const changedAssumptions = analysis.optimization.sensitivity
+    .map(row => row.changed_assumption)
+    .filter((assumption, index, rows) => assumption !== 'base' && rows.indexOf(assumption) === index)
+    .map(assumption => ({
+      md_rate_rm_per_kw: 'MD tariff',
+      battery_capex: 'battery CAPEX',
+      solar_capex_rm_per_kwp: 'solar CAPEX',
+    }[assumption] ?? assumption.replaceAll('_', ' ')));
+  const sensitivity = changedAssumptions.length > 0
+    ? [`Re-check ${changedAssumptions.slice(0, 3).join(', ')} before procurement; these inputs can change which scenario ranks first.`]
+    : ['Re-check MD tariff, battery CAPEX, solar CAPEX, and peak timing before procurement; these are the assumptions most likely to change the ranking.'];
+
+  return {
+    summary: `${testedCount} tested scenario${testedCount === 1 ? '' : 's'} were ranked by recurring savings, demand-charge exposure, investment, and payback efficiency.`,
+    items,
+    sensitivity,
+  };
 }
 
 function AssumptionField({
@@ -220,6 +325,7 @@ export function Optimization({
   const data = scheduleData(analysis);
   const analysisAssumptions = analysis.assumptions;
   const explanation = analysis.optimization.explanation;
+  const decisionEvidence = buildScenarioDecisionEvidence(analysis);
   const mdReductionKw = best.md_before - best.md_after;
   const planningLabel = explanation.planning_basis_label || planningBasisLabel(best.risk_basis);
   const periodMonths = Number(best.savings_period_months ?? analysisAssumptions.planning_months ?? 1);
@@ -258,13 +364,6 @@ export function Optimization({
               <p className="text-[9px] font-black uppercase tracking-widest text-on-surface-variant">Payback</p>
               <p className="mt-1 text-base font-black text-on-surface">{formatPayback(best.payback_months)}</p>
             </div>
-          </div>
-
-          <div className="mt-5 rounded-lg bg-secondary-container/45 px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-widest text-on-secondary-fixed/70">Why this one</p>
-            <p className="mt-2 text-sm font-semibold leading-relaxed text-on-secondary-fixed">
-              Best savings in the tested set with {formatRm(scenarioCapex(best))} investment.
-            </p>
           </div>
 
           <div className="mt-5 flex flex-col gap-3 border-t border-outline-variant/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -412,6 +511,37 @@ export function Optimization({
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-5 rounded-lg border border-primary/10 bg-primary-fixed/30 px-5 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3 lg:max-w-sm">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-container-lowest text-primary">
+                <BrainCircuit size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Explainable AI</p>
+                <p className="mt-1 text-sm font-black leading-snug text-on-surface">Why the model chose this scenario</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-on-surface-variant">{decisionEvidence.summary}</p>
+              </div>
+            </div>
+
+            <div className="grid flex-1 grid-cols-1 gap-3 xl:grid-cols-3">
+              {decisionEvidence.items.map(item => (
+                <div key={item.label} className="rounded-lg bg-surface-container-lowest/80 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary">{item.label}</p>
+                  <p className="mt-1 text-xs font-semibold leading-relaxed text-on-surface">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-outline-variant/10 bg-surface-container-lowest/80 px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">What can change the answer</p>
+            {decisionEvidence.sensitivity.map(item => (
+              <p key={item} className="mt-1 text-xs font-semibold leading-relaxed text-on-surface-variant">{item}</p>
+            ))}
+          </div>
         </div>
       </section>
 

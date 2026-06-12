@@ -14,6 +14,7 @@ import { Optimization } from './components/Optimization';
 import { ExecutiveSummary } from './components/ExecutiveSummary';
 import { AuthPage } from './components/AuthPage';
 import { SettingsPage } from './components/SettingsPage';
+import { DashboardAssistant } from './components/DashboardAssistant';
 import { ApiUnavailableBanner, type LoadingStepId } from './components/AnalysisState';
 import { NAV_ITEMS } from './constants';
 import {
@@ -431,6 +432,7 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
+      <DashboardAssistant analysis={analysis} />
 
       {/* Global CSS for animations */}
       {waitingForProfileRedirect && (
